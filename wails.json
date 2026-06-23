@@ -1,0 +1,11 @@
+{
+  "name": "MugSoft Agent",
+  "outputfilename": "MugSoft-Agent",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev": "npm run dev",
+  "boundaries": {
+    "frontend": "frontend",
+    "backend": "backend"
+  }
+}
