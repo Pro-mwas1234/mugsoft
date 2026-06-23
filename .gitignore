@@ -1,0 +1,31 @@
+# Wails build output
+build/
+bin/
+
+# Go dependencies
+vendor/
+
+# Go module files (optional - commit if you want deterministic builds)
+# go.sum
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config
+*.log
+.env
+
+# Node modules (if you add npm later)
+node_modules/
+package-lock.json
+
+# Wails JS bindings (regenerated on build)
+frontend/wailsjs/

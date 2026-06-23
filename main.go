@@ -361,8 +361,8 @@ func (a *App) GetConfig() *AgentConfig {
 	return a.config
 }
 
-// RunApp executes a custom app
-func (a *App) RunApp(appName string, args []string) (string, error) {
+// ListApps returns all loaded custom apps
+func (a *App) ListApps() []string {
 	// TODO: Implement app listing
 	return []string{}
 }
