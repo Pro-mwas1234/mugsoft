@@ -4,63 +4,277 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MugSoft Agent</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@vscode/codicons@0.0.35/dist/codicon.css">
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
 </head>
 <body>
-    <div class="app-container">
-        <!-- Sidebar -->
-        <div class="sidebar">
-            <div class="sidebar-header">Explorer</div>
-            <div class="file-tree" id="fileTree">
-                <!-- Files will be loaded here -->
-            </div>
-        </div>
-        
-        <!-- Main Area -->
-        <div class="main-area">
-            <!-- Tabs -->
-            <div class="tabs" id="tabs">
-                <!-- Open file tabs -->
-            </div>
-            
-            <!-- Editor -->
-            <div class="editor-container">
-                <div id="editor"></div>
-            </div>
-            
-            <!-- Terminal -->
-            <div class="terminal-panel">
-                <div class="terminal-header">
-                    <span>Terminal</span>
-                    <button onclick="clearTerminal()">Clear</button>
-                </div>
-                <div class="terminal-output" id="terminalOutput">
-                    <div>Welcome to MugSoft Agent Terminal</div>
-                    <div>Type commands below...</div>
-                    <br>
-                </div>
-                <div class="terminal-input-line">
-                    <span class="terminal-prompt">$</span>
-                    <input type="text" id="terminal-input" placeholder="Enter command..." onkeypress="handleTerminalInput(event)">
-                </div>
-            </div>
-            
-            <!-- Status Bar -->
-            <div class="status-bar">
-                <div class="status-left">
-                    <span>Ready</span>
-                </div>
-                <div class="status-right">
-                    <span id="projectPath">Project: Loading...</span>
-                    <span id="aiProvider">AI: Not configured</span>
-                    <button class="status-btn" onclick="openSettings()">⚙️ Settings</button>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Custom Apps Panel - Removed -->
+
+    <!-- Dropdown Menus -->
+    <div class="menu-dropdown" id="dropdown-file">
+        <div class="menu-dropdown-item" onclick="hideAllDropdowns();contextMenuAction('new-file')"><i class="codicon codicon-new-file"></i> New File <span class="menu-shortcut">Ctrl+N</span></div>
+        <div class="menu-dropdown-item" onclick="hideAllDropdowns();contextMenuAction('new-folder')"><i class="codicon codicon-new-folder"></i> New Folder</div>
+        <div class="menu-dropdown-sep"></div>
+        <div class="menu-dropdown-item" onclick="hideAllDropdowns();openSettings()"><i class="codicon codicon-folder-opened"></i> Open Folder...</div>
+        <div class="menu-dropdown-item" onclick="hideAllDropdowns();if(currentFile){window.go.app.WriteFile(currentFile,editor.getValue()).then(function(){showToast('success','Saved')})}"><i class="codicon codicon-save"></i> Save <span class="menu-shortcut">Ctrl+S</span></div>
+        <div class="menu-dropdown-sep"></div>
+        <div class="menu-dropdown-item" onclick="hideAllDropdowns();closeWindow()"><i class="codicon codicon-close"></i> Exit</div>
     </div>
-    
+    <div class="menu-dropdown" id="dropdown-edit">
+        <div class="menu-dropdown-item" onclick="hideAllDropdowns();document.execCommand('undo')"><i class="codicon codicon-undo"></i> Undo <span class="menu-shortcut">Ctrl+Z</span></div>
+        <div class="menu-dropdown-item" onclick="hideAllDropdowns();document.execCommand('redo')"><i class="codicon codicon-redo"></i> Redo <span class="menu-shortcut">Ctrl+Shift+Z</span></div>
+        <div class="menu-dropdown-sep"></div>
+        <div class="menu-dropdown-item" onclick="hideAllDropdowns();document.execCommand('cut')"><i class="codicon codicon-cut"></i> Cut <span class="menu-shortcut">Ctrl+X</span></div>
+        <div class="menu-dropdown-item" onclick="hideAllDropdowns();document.execCommand('copy')"><i class="codicon codicon-copy"></i> Copy <span class="menu-shortcut">Ctrl+C</span></div>
+        <div class="menu-dropdown-item" onclick="hideAllDropdowns();document.execCommand('paste')"><i class="codicon codicon-vscode"></i> Paste <span class="menu-shortcut">Ctrl+V</span></div>
+    </div>
+    <div class="menu-dropdown" id="dropdown-selection">
+        <div class="menu-dropdown-item" onclick="hideAllDropdowns();document.execCommand('selectAll')"><i class="codicon codicon-select-all"></i> Select All <span class="menu-shortcut">Ctrl+A</span></div>
+    </div>
+    <div class="menu-dropdown" id="dropdown-view">
+        <div class="menu-dropdown-item" onclick="hideAllDropdowns();switchActivity('explorer')"><i class="codicon codicon-files"></i> Explorer <span class="menu-shortcut">Ctrl+Shift+E</span></div>
+        <div class="menu-dropdown-item" onclick="hideAllDropdowns();switchActivity('search')"><i class="codicon codicon-search"></i> Search <span class="menu-shortcut">Ctrl+Shift+F</span></div>
+        <div class="menu-dropdown-item" onclick="hideAllDropdowns();switchActivity('source-control')"><i class="codicon codicon-source-control"></i> Source Control <span class="menu-shortcut">Ctrl+Shift+G</span></div>
+        <div class="menu-dropdown-item" onclick="hideAllDropdowns();switchActivity('run-debug')"><i class="codicon codicon-debug-alt"></i> Run <span class="menu-shortcut">Ctrl+Shift+D</span></div>
+        <div class="menu-dropdown-sep"></div>
+        <div class="menu-dropdown-item" onclick="hideAllDropdowns();toggleTerminal()"><i class="codicon codicon-terminal"></i> Terminal <span class="menu-shortcut">Ctrl+\`</span></div>
+        <div class="menu-dropdown-item" onclick="hideAllDropdowns();switchActivity('ai-chat')"><i class="codicon codicon-comment-discussion"></i> AI Chat <span class="menu-shortcut">Ctrl+Shift+A</span></div>
+    </div>
+    <div class="menu-dropdown" id="dropdown-go">
+        <div class="menu-dropdown-item" onclick="hideAllDropdowns();switchActivity('explorer')"><i class="codicon codicon-files"></i> Go to File</div>
+    </div>
+    <div class="menu-dropdown" id="dropdown-run">
+        <div class="menu-dropdown-item" onclick="hideAllDropdowns();switchActivity('run-debug');setTimeout(runCurrentConfig,100)"><i class="codicon codicon-play"></i> Run <span class="menu-shortcut">F5</span></div>
+        <div class="menu-dropdown-item" onclick="hideAllDropdowns();showAddConfigDialog()"><i class="codicon codicon-add"></i> Add Configuration</div>
+    </div>
+    <div class="menu-dropdown" id="dropdown-terminal">
+        <div class="menu-dropdown-item" onclick="hideAllDropdowns();toggleTerminal()"><i class="codicon codicon-terminal"></i> Toggle Terminal <span class="menu-shortcut">Ctrl+\`</span></div>
+        <div class="menu-dropdown-sep"></div>
+        <div class="menu-dropdown-item" onclick="hideAllDropdowns();clearTerminal()"><i class="codicon codicon-trash"></i> Clear Terminal</div>
+        <div class="menu-dropdown-item" onclick="hideAllDropdowns();killTerminal()"><i class="codicon codicon-stop"></i> Kill Terminal</div>
+    </div>
+    <div class="menu-dropdown" id="dropdown-help">
+        <div class="menu-dropdown-item" onclick="hideAllDropdowns();showToast('info','MugSoft Agent v1.0 — AI-powered code editor')"><i class="codicon codicon-info"></i> About</div>
+    </div>
+
+    <!-- ====== TITLE BAR + MENU BAR (VS Code Style) ====== -->
+    <div class="title-bar">
+        <div class="title-bar-left">
+            <div class="menu-bar-items">
+                <span class="menu-item" data-menu="file" onclick="showMenuDropdown('file')">File</span>
+                <span class="menu-item" data-menu="edit" onclick="showMenuDropdown('edit')">Edit</span>
+                <span class="menu-item" data-menu="selection" onclick="showMenuDropdown('selection')">Selection</span>
+                <span class="menu-item" data-menu="view" onclick="showMenuDropdown('view')">View</span>
+                <span class="menu-item" data-menu="go" onclick="showMenuDropdown('go')">Go</span>
+                <span class="menu-item" data-menu="run" onclick="showMenuDropdown('run')">Run</span>
+                <span class="menu-item" data-menu="terminal" onclick="showMenuDropdown('terminal')">Terminal</span>
+                <span class="menu-item" data-menu="help" onclick="showMenuDropdown('help')">Help</span>
+            </div>
+        </div>
+        <div class="title-bar-center">
+            <span class="title-bar-label">MugSoft Agent</span>
+        </div>
+        <div class="title-bar-right">
+            <span id="headerAiStatus" style="font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:4px"><span class="status-indicator" id="headerAiIndicator"></span> AI: <span id="headerAiLabel">Off</span></span>
+            <button class="title-bar-btn" onclick="openSettings()" title="Settings"><i class="codicon codicon-gear"></i></button>
+            <div class="window-controls">
+                <button class="window-btn" onclick="minimizeWindow()" title="Minimize"><i class="codicon codicon-chrome-minimize"></i></button>
+                <button class="window-btn" onclick="maximizeWindow()" title="Maximize"><i class="codicon codicon-chrome-maximize"></i></button>
+                <button class="window-btn window-close" onclick="closeWindow()" title="Close"><i class="codicon codicon-chrome-close"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====== MAIN LAYOUT ====== -->
+    <div class="main-layout">
+
+        <!-- Activity Bar -->
+        <div class="activity-bar">
+            <div class="activity-bar-top">
+                <button class="activity-btn active" data-activity="explorer" onclick="switchActivity('explorer')" title="Explorer (Ctrl+Shift+E)">
+                    <i class="codicon codicon-files"></i>
+                </button>
+                <button class="activity-btn" data-activity="search" onclick="switchActivity('search')" title="Search (Ctrl+Shift+F)">
+                    <i class="codicon codicon-search"></i>
+                </button>
+                <button class="activity-btn" data-activity="source-control" onclick="switchActivity('source-control')" title="Source Control (Ctrl+Shift+G)">
+                    <i class="codicon codicon-source-control"></i>
+                </button>
+                <button class="activity-btn" data-activity="ai-providers" onclick="switchActivity('ai-providers')" title="AI Providers">
+                    <i class="codicon codicon-robot"></i>
+                </button>
+                <button class="activity-btn" data-activity="run-debug" onclick="switchActivity('run-debug')" title="Run and Debug (Ctrl+Shift+D)">
+                    <i class="codicon codicon-debug-alt"></i>
+                </button>
+            </div>
+            <div class="activity-bar-bottom">
+                <button class="activity-btn" data-activity="ai-chat" onclick="switchActivity('ai-chat')" title="AI Chat (Ctrl+Shift+A)">
+                    <i class="codicon codicon-comment-discussion"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Side Panel -->
+        <div class="side-panel" id="sidePanel">
+            <!-- Panel header and content are rendered by JS -->
+            <div class="panel-header" id="panelHeader">Explorer</div>
+            <div class="panel-content" id="panelContent">
+                <!-- Explorer Panel -->
+                <div class="panel-view active" id="panelExplorer">
+                    <div class="panel-view-header">
+                        <span>EXPLORER</span>
+                        <button class="panel-btn" onclick="refreshFileTree()" title="Refresh"><i class="codicon codicon-refresh"></i></button>
+                    </div>
+                    <div class="file-tree" id="fileTree"></div>
+                </div>
+
+                <!-- Search Panel -->
+                <div class="panel-view" id="panelSearch">
+                    <div class="panel-view-header"><span>SEARCH</span></div>
+                    <div class="search-box">
+                        <input type="text" id="searchInput" placeholder="Search files..." onkeydown="if(event.key==='Enter')searchFiles()">
+                        <button class="panel-btn" onclick="searchFiles()" title="Search"><i class="codicon codicon-search"></i></button>
+                    </div>
+                    <div class="search-results" id="searchResults">
+                        <div style="color:var(--text-muted);font-size:12px;padding:16px;text-align:center">Type a query and press Enter</div>
+                    </div>
+                </div>
+
+                <!-- Source Control Panel -->
+                <div class="panel-view" id="panelSourceControl">
+                    <div class="panel-view-header"><span>SOURCE CONTROL</span></div>
+                    <div class="sc-message-box">
+                        <input type="text" id="scMessage" placeholder="Message (press Ctrl+Enter to commit)">
+                        <button class="btn btn-primary btn-sm" onclick="gitCommit()" title="Commit"><i class="codicon codicon-check"></i> Commit</button>
+                    </div>
+                    <div class="sc-changes" id="scChanges">
+                        <div class="sc-section-header" onclick="toggleScSection(this)">
+                            <i class="codicon codicon-chevron-down sc-chevron"></i>
+                            <span>Changes</span>
+                            <span class="sc-count" id="scChangeCount">0</span>
+                        </div>
+                        <div class="sc-section-body" id="scChangeList"></div>
+                    </div>
+                </div>
+
+                <!-- AI Providers Panel -->
+                <div class="panel-view" id="panelAiProviders">
+                    <div class="panel-view-header"><span>AI PROVIDERS</span></div>
+                    <div class="ai-providers-list" id="aiProvidersList">
+                        <div style="color:var(--text-muted);font-size:12px;padding:16px;text-align:center">Loading providers...</div>
+                    </div>
+                </div>
+
+                <!-- Run & Debug Panel -->
+                <div class="panel-view" id="panelRunDebug">
+                    <div class="panel-view-header">
+                        <span>RUN &amp; DEBUG</span>
+                        <button class="panel-btn" onclick="showAddConfigDialog()" title="Add configuration"><i class="codicon codicon-add"></i></button>
+                    </div>
+                    <div class="debug-configs" id="debugConfigList"></div>
+                    <div class="debug-output" id="debugOutput">
+                        <div class="debug-output-placeholder">Configure a run task and press <span class="kbd">F5</span> to start</div>
+                    </div>
+                    <div class="debug-actions">
+                        <button class="btn btn-primary btn-sm" onclick="runCurrentConfig()" id="runBtn" disabled><i class="codicon codicon-play"></i> Run</button>
+                        <button class="btn btn-secondary btn-sm" onclick="stopRunning()" id="stopBtn" disabled style="display:none"><i class="codicon codicon-stop"></i> Stop</button>
+                        <button class="btn btn-secondary btn-sm" onclick="clearDebugOutput()"><i class="codicon codicon-trash"></i> Clear</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Resize handle for left side panel -->
+            <div class="side-resize-handle" id="sideResizeHandle"></div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="main-content">
+
+            <!-- Tabs -->
+            <div class="tabs" id="tabs"></div>
+
+            <!-- Editor (supports drag-and-drop from file tree) -->
+            <div class="editor-container" id="editorContainer" ondragover="event.preventDefault();event.dataTransfer.dropEffect='copy';this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="event.preventDefault();this.classList.remove('drag-over');var fp=event.dataTransfer.getData('text/plain');if(fp)openFile(fp);">
+                <div id="editor"></div>
+                <div id="diffEditorContainer" style="display:none;width:100%;height:100%">
+                    <div class="diff-header">
+                        <span><i class="codicon codicon-diff"></i> Diff View</span>
+                        <span class="diff-file-path" id="diffFilePath"></span>
+                        <label class="diff-ref-label">Compare against:</label>
+                        <select class="diff-ref-select" id="diffRefSelect" onchange="reloadDiff()"></select>
+                        <button class="diff-close-btn" onclick="closeDiffView()" title="Close Diff View"><i class="codicon codicon-close"></i></button>
+                    </div>
+                    <div id="diffEditor" style="width:100%;flex:1;min-height:0"></div>
+                </div>
+                <div class="loading-overlay" id="loadingOverlay">
+                    <div class="spinner"><div class="spinner-ring"></div><span>Loading files...</span></div>
+                </div>
+            </div>
+
+            <!-- Terminal Resize Handle -->
+            <div class="resize-handle-h" id="terminalResize"></div>
+
+            <!-- Terminal (xterm.js) -->
+            <div class="terminal-panel" id="terminalPanel">
+                <div class="terminal-header">
+                    <span class="terminal-title">TERMINAL</span>
+                    <div class="terminal-actions">
+                        <span class="kbd" title="Toggle focus">Ctrl+`</span>
+                        <button class="terminal-btn" onclick="toggleTerminalSize()" title="Maximize/Restore"><i class="codicon codicon-chevron-up"></i></button>
+                        <button class="terminal-btn" onclick="clearTerminal()">Clear</button>
+                        <button class="terminal-btn" onclick="killTerminal()" title="Kill terminal"><i class="codicon codicon-stop"></i></button>
+                        <button class="terminal-btn" onclick="toggleTerminal()" title="Close terminal"><i class="codicon codicon-close"></i></button>
+                    </div>
+                </div>
+                <div class="xterm-container" id="xtermContainer"></div>
+            </div>
+
+        </div><!-- /main-content -->
+
+        <!-- Right Side Panel (AI Chat) -->
+        <div class="side-panel-right" id="sidePanelRight">
+            <div class="panel-header">
+                <span>AI Chat</span>
+                <button class="panel-close-btn" onclick="switchActivity('explorer')" title="Close AI Chat"><i class="codicon codicon-close"></i></button>
+            </div>
+            <div class="ai-chat-body" id="aiChatHistory">
+                <div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px 0">Ask something to get started</div>
+            </div>
+            <div class="typing-indicator" id="typingIndicator">
+                <span>Thinking</span>
+                <span class="typing-dots"><span></span><span></span><span></span></span>
+            </div>
+            <div class="ai-chat-input">
+                <textarea id="aiQuestion" placeholder="Ask AI about your code... (Ctrl+Enter to send)" rows="3"></textarea>
+                <div class="ai-input-actions">
+                    <span class="ai-input-hint">Context from open files</span>
+                    <button class="btn btn-primary btn-sm" onclick="askAI()"><i class="codicon codicon-send"></i> Send</button>
+                </div>
+            </div>
+            <!-- Resize handle for right side panel -->
+            <div class="side-resize-handle-right" id="sideResizeHandleRight"></div>
+        </div>
+    </div><!-- /main-layout -->
+
+    <!-- Status Bar -->
+    <div class="status-bar">
+        <div class="status-left">
+            <span class="status-item" id="statusReady">Ready</span>
+        </div>
+        <div class="status-right">
+            <span class="status-item" id="scStatus"><i class="codicon codicon-source-control"></i> <span id="scBranch">main</span></span>
+            <span class="status-item" id="fileCount"></span>
+            <span class="status-item">
+                <span class="status-indicator" id="aiStatusIndicator"></span>
+                <span id="aiProvider">AI: Off</span>
+            </span>
+        </div>
+    </div>
+
     <!-- Settings Modal -->
     <div class="modal-overlay" id="settingsModal">
         <div class="modal">
@@ -70,12 +284,11 @@
             </div>
             <div class="modal-body">
                 <div class="settings-section">
-                    <h3>AI Provider</h3>
-                    <p style="color: #858585; font-size: 13px; margin-bottom: 16px;">
-                        Choose your AI provider and enter your API key. Only one provider can be active at a time.
-                    </p>
-                    <div id="providerList">
-                        <!-- Provider cards will be loaded here -->
+                    <h3>Project Directory</h3>
+                    <p class="settings-desc">Set the root directory for file browsing, editing, and terminal commands.</p>
+                    <div class="dir-input-row">
+                        <input type="text" id="projectDirInput" placeholder="C:\Users\...\my-project" class="dir-input" readonly>
+                        <button class="btn btn-secondary" onclick="browseProjectDir()" style="flex-shrink:0;white-space:nowrap">Browse...</button>
                     </div>
                 </div>
             </div>
@@ -85,418 +298,1957 @@
             </div>
         </div>
     </div>
-    
-    <!-- AI Chat Panel (for asking questions) -->
-    <div class="apps-panel" id="aiPanel" style="display: none;">
-        <div class="apps-header">
-            AI Assistant
-            <button onclick="closeAIPanel()" style="background: none; border: none; color: #858585; cursor: pointer; float: right;">&times;</button>
-        </div>
-        <div style="padding: 10px; flex: 1; display: flex; flex-direction: column; gap: 10px;">
-            <div id="aiChatHistory" style="flex: 1; overflow-y: auto; font-size: 13px; color: #cccccc;"></div>
-            <textarea id="aiQuestion" placeholder="Ask AI something..." style="width: 100%; height: 80px; background: #1e1e1e; border: 1px solid #3c3c3c; color: #cccccc; padding: 8px; font-family: inherit; font-size: 13px; resize: none;"></textarea>
-            <button class="btn btn-primary" onclick="askAI()">Ask AI</button>
-        </div>
+
+    <!-- Context Menu -->
+    <div class="context-menu" id="contextMenu">
+        <div class="context-menu-item" data-action="new-file" onclick="contextMenuAction('new-file')"><i class="codicon codicon-new-file"></i> New File</div>
+        <div class="context-menu-item" data-action="new-folder" onclick="contextMenuAction('new-folder')"><i class="codicon codicon-new-folder"></i> New Folder</div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" data-action="rename" onclick="contextMenuAction('rename')"><i class="codicon codicon-edit"></i> Rename</div>
+        <div class="context-menu-item" data-action="delete" onclick="contextMenuAction('delete')"><i class="codicon codicon-trash"></i> Delete</div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" data-action="copy-path" onclick="contextMenuAction('copy-path')"><i class="codicon codicon-clippy"></i> Copy Path</div>
     </div>
-    
-    <!-- Load Monaco Editor from CDN -->
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Monaco Editor -->
     <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.min.js"></script>
-    
+
     <script>
-        let editor;
-        let currentFile = null;
-        let openFiles = new Map();
-        let providers = {};
-        let activeProvider = '';
-        
-        // Initialize Monaco Editor
-        require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
-        require(['vs/editor/editor.main'], function() {
-            editor = monaco.editor.create(document.getElementById('editor'), {
-                value: '// Welcome to MugSoft Agent\n// Open a file to start editing',
-                language: 'plaintext',
-                theme: 'vs-dark',
-                automaticLayout: true,
-                fontSize: 14,
-                minimap: { enabled: true },
-                scrollBeyondLastLine: false,
-            });
-            
-            // Load initial data
-            loadFiles();
-            loadProjectInfo();
-            loadProviders();
+    /* ==============================================
+       Utility: HTML Escaping
+       ============================================== */
+    function escapeHtml(text) {
+        if (typeof text !== 'string') return '';
+        return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+    }
+
+    /* ==============================================
+       Toast Notifications
+       ============================================== */
+    function showToast(type, message, duration) {
+        duration = duration || 3500;
+        var container = document.getElementById('toastContainer');
+        var icons = { success: '\\u2713', error: '\\u2717', info: '\\u2139' };
+        var toast = document.createElement('div');
+        toast.className = 'toast ' + (type || 'info');
+        toast.innerHTML =
+            '<span class="toast-icon">' + (icons[type] || '\\u2139') + '</span>' +
+            '<span class="toast-message">' + escapeHtml(message) + '</span>' +
+            '<button class="toast-close-btn" onclick="this.parentElement.remove()">&times;</button>';
+        container.appendChild(toast);
+        setTimeout(function () {
+            if (toast.parentElement) { toast.classList.add('toast-out'); setTimeout(function(){if(toast.parentElement)toast.remove();},300); }
+        }, duration);
+    }
+
+    /* ==============================================
+       Application State
+       ============================================== */
+    var editor;
+    var diffEditor = null;
+    var diffEditorModels = null;
+    var isDiffView = false;
+    var currentDiffFile = null;
+    var currentDiffRef = 'HEAD';
+    var gitRefs = [];
+    var currentFile = null;
+    var openFiles = new Map();
+    var providers = {};
+    var activeProvider = '';
+    var fileCount = 0;
+    var commandHistory = [];
+    var historyIndex = -1;
+    var allFiles = [];
+    var gitStatus = {};
+    var gitStatusArray = [];
+    var saveTimeout;
+    var currentActivity = 'explorer';
+    var folderExpandedState = {};
+
+    /* ==============================================
+       Activity Bar Switching
+       ============================================== */
+    function switchActivity(activity) {
+        currentActivity = activity;
+
+        // Update activity buttons
+        document.querySelectorAll('.activity-btn').forEach(function(btn) {
+            btn.classList.toggle('active', btn.dataset.activity === activity);
         });
-        
-        // File operations
-        async function loadFiles() {
-            try {
-                const files = await window.go.app.GetAllFiles();
-                const fileTree = document.getElementById('fileTree');
-                fileTree.innerHTML = '';
-                
-                files.forEach(file => {
-                    const fileItem = document.createElement('div');
-                    fileItem.className = 'file-item';
-                    fileItem.innerHTML = `
-                        <span class="file-icon">📄</span>
-                        <span>${file}</span>
-                    `;
-                    fileItem.onclick = () => openFile(file);
-                    fileTree.appendChild(fileItem);
-                });
-            } catch (error) {
-                console.error('Error loading files:', error);
-            }
-        }
-        
-        async function openFile(filename) {
-            try {
-                const content = await window.go.app.ReadFile(filename);
-                currentFile = filename;
-                openFiles.set(filename, content);
-                
-                editor.setValue(content);
-                updateTabs();
-                
-                // Detect language based on extension
-                const lang = getLanguageFromExtension(filename);
-                monaco.editor.setModelLanguage(editor.getModel(), lang);
-            } catch (error) {
-                appendToTerminal(`Error opening ${filename}: ${error}`);
-            }
-        }
-        
-        function getLanguageFromExtension(filename) {
-            const ext = filename.split('.').pop().toLowerCase();
-            const langMap = {
-                'go': 'go',
-                'js': 'javascript',
-                'ts': 'typescript',
-                'py': 'python',
-                'html': 'html',
-                'css': 'css',
-                'json': 'json',
-                'md': 'markdown',
-                'yaml': 'yaml',
-                'yml': 'yaml',
-                'toml': 'toml',
-                'rs': 'rust',
-                'java': 'java',
-                'cpp': 'cpp',
-                'c': 'c',
-                'sh': 'shell',
-                'ps1': 'powershell'
+
+        var sidePanel = document.getElementById('sidePanel');
+        var panelContent = document.getElementById('panelContent');
+        var panelHeader = document.getElementById('panelHeader');
+
+        var panelTitles = {
+            'explorer': 'Explorer',
+            'search': 'Search',
+            'source-control': 'Source Control',
+            'ai-providers': 'AI Providers',
+            'run-debug': 'Run & Debug',
+            'ai-chat': 'AI Chat'
+        };
+
+        var rightPanel = document.getElementById('sidePanelRight');
+        var isAiChat = activity === 'ai-chat';
+
+        // Show/hide right panel for AI Chat
+        if (isAiChat) {
+            rightPanel.classList.add('visible');
+            sidePanel.classList.add('collapsed');
+            panelHeader.textContent = '';
+            setTimeout(function(){ document.getElementById('aiQuestion').focus(); }, 150);
+        } else {
+            rightPanel.classList.remove('visible');
+            sidePanel.classList.remove('collapsed');
+            panelHeader.textContent = panelTitles[activity] || '';
+
+            // Show correct left panel view
+            document.querySelectorAll('.panel-view').forEach(function(el) { el.classList.remove('active'); });
+            var panelMap = {
+                'explorer': 'panelExplorer',
+                'search': 'panelSearch',
+                'source-control': 'panelSourceControl',
+                'ai-providers': 'panelAiProviders',
+                'run-debug': 'panelRunDebug'
             };
-            return langMap[ext] || 'plaintext';
+            var target = document.getElementById(panelMap[activity]);
+            if (target) target.classList.add('active');
+
+            // Auto-focus search input
+            if (activity === 'search') {
+                setTimeout(function(){ document.getElementById('searchInput').focus(); }, 100);
+            }
+        }
+
+        if (editor) {
+            setTimeout(function(){ editor.layout(); }, 100);
+        }
+
+        // Refresh git status when switching to source control
+        if (activity === 'source-control') {
+            renderSourceControl();
+        }
+
+        // Refresh providers when switching to AI Providers
+        if (activity === 'ai-providers') {
+            renderAiProviders();
+        }
+
+        // Initialize run-debug panel
+        if (activity === 'run-debug') {
+            loadDebugConfigs();
+            renderDebugConfigs();
+            if (activeConfigIndex < 0 && debugConfigs.length > 0) {
+                activeConfigIndex = 0;
+                renderDebugConfigs();
+            }
+        }
+    }
+
+    /* ==============================================
+       Monaco Editor
+       ============================================== */
+    /* ==============================================
+       Window Controls & Menu (global scope)
+       ============================================== */
+    function minimizeWindow() { if (window.runtime) window.runtime.WindowMinimise(); }
+    function maximizeWindow() {
+        if (window.runtime) {
+            window.runtime.WindowIsMaximised().then(function(m) {
+                if (m) window.runtime.WindowUnmaximise();
+                else window.runtime.WindowMaximise();
+            }).catch(function() { window.runtime.WindowMaximise(); });
+        }
+    }
+    function closeWindow() { if (window.runtime) window.runtime.WindowClose(); }
+    /* ==============================================
+       Menu Bar Dropdowns
+       ============================================== */
+    var activeDropdown = null;
+
+    function showMenuDropdown(menu) {
+        hideAllDropdowns();
+        var dropdown = document.getElementById('dropdown-' + menu);
+        if (!dropdown) return;
+        
+        // Position below the menu item
+        var menuItem = document.querySelector('.menu-item[data-menu="' + menu + '"]');
+        if (menuItem) {
+            var rect = menuItem.getBoundingClientRect();
+            dropdown.style.top = rect.bottom + 'px';
+            dropdown.style.left = rect.left + 'px';
         }
         
-        function updateTabs() {
-            const tabsContainer = document.getElementById('tabs');
-            tabsContainer.innerHTML = '';
-            
-            openFiles.forEach((content, filename) => {
-                const tab = document.createElement('div');
-                tab.className = 'tab' + (filename === currentFile ? ' active' : '');
-                tab.innerHTML = `
-                    <span>📄</span>
-                    <span>${filename.split('/').pop()}</span>
-                    <span class="tab-close" onclick="closeFile('${filename}', event)">×</span>
-                `;
-                tab.onclick = (e) => {
-                    if (!e.target.classList.contains('tab-close')) {
-                        switchToFile(filename);
-                    }
-                };
-                tabsContainer.appendChild(tab);
+        dropdown.classList.add('visible');
+        activeDropdown = menu;
+    }
+
+    function hideAllDropdowns() {
+        document.querySelectorAll('.menu-dropdown.visible').forEach(function(el) {
+            el.classList.remove('visible');
+        });
+        activeDropdown = null;
+    }
+
+    // Single persistent click handler — closes dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!activeDropdown) return;
+        var dropdown = document.getElementById('dropdown-' + activeDropdown);
+        var menuItem = document.querySelector('.menu-item[data-menu="' + activeDropdown + '"]');
+        if (dropdown && !dropdown.contains(e.target) && e.target !== menuItem && !e.target.closest('.menu-item')) {
+            hideAllDropdowns();
+        }
+    });
+
+    // Close dropdowns on keyboard Escape
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && activeDropdown) {
+            hideAllDropdowns();
+        }
+    });
+
+    require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+    // Ensure Wails bindings are aliased properly before any Go calls
+    (function ensureBindings(retries) {
+        if (retries === undefined) retries = 0;
+        var mainApp = window.go && window.go.main && (window.go.main.App || window.go.main.app);
+        var shortcut = window.go && window.go.app;
+        
+        if (!shortcut && mainApp) {
+            window.go.app = mainApp;
+        } else if (shortcut && mainApp && shortcut !== mainApp) {
+            Object.keys(mainApp).forEach(function(k) {
+                if (typeof mainApp[k] === 'function' && typeof shortcut[k] !== 'function') {
+                    shortcut[k] = mainApp[k];
+                }
             });
         }
         
-        function switchToFile(filename) {
-            currentFile = filename;
-            editor.setValue(openFiles.get(filename));
-            updateTabs();
+        if (window.go && window.go.app) {
+            var m = Object.keys(window.go.app).filter(function(k){return typeof window.go.app[k] === 'function';});
+            console.log('Backend (' + m.length + ' methods):', m.join(', '));
+        } else if (retries < 20) {
+            setTimeout(function(){ ensureBindings(retries + 1); }, 100);
+        } else {
+            console.error('Backend NOT FOUND after 20 retries - Go methods unavailable');
         }
-        
-        function closeFile(filename, event) {
-            event.stopPropagation();
-            openFiles.delete(filename);
-            if (currentFile === filename) {
-                currentFile = openFiles.keys().next().value || null;
-                if (currentFile) {
-                    editor.setValue(openFiles.get(currentFile));
-                } else {
-                    editor.setValue('// No file open');
-                }
-            }
-            updateTabs();
-        }
-        
-        // Auto-save on editor change
-        let saveTimeout;
-        editor.onDidChangeModelContent(() => {
+    })();
+
+    require(['vs/editor/editor.main'], function () {
+        editor = monaco.editor.create(document.getElementById('editor'), {
+            value: '// Welcome to MugSoft Agent\\n// Open a file from the explorer to start editing',
+            language: 'plaintext',
+            theme: 'vs-dark',
+            automaticLayout: true,
+            fontSize: 14,
+            minimap: { enabled: true },
+            scrollBeyondLastLine: false,
+            wordWrap: 'on',
+            smoothScrolling: true,
+            cursorBlinking: 'smooth',
+            cursorSmoothCaretAnimation: 'on',
+            dragAndDropEnabled: false,  // Use our own DnD handler instead
+        });
+
+        // Auto-save
+        editor.onDidChangeModelContent(function () {
             clearTimeout(saveTimeout);
-            saveTimeout = setTimeout(async () => {
+            saveTimeout = setTimeout(async function () {
                 if (currentFile) {
                     try {
                         await window.go.app.WriteFile(currentFile, editor.getValue());
-                        appendToTerminal(`✓ Saved ${currentFile}`);
-                    } catch (error) {
-                        appendToTerminal(`✗ Error saving ${currentFile}: ${error}`);
-                    }
+                        showToast('success', 'Saved ' + currentFile.split('/').pop());
+                    } catch (error) { showToast('error', 'Error saving: ' + error.message); }
                 }
-            }, 1000);
+            }, 800);
+        });
+
+        loadFiles();
+        loadProjectInfo();
+        loadProviders();
+
+        // Listen for file system changes
+        if (window.runtime && window.runtime.EventsOn) {
+            window.runtime.EventsOn('files-changed', function () { refreshFileTreeSilent(); });
+        }
+    });
+
+    /* ==============================================
+       File Tree (Folder-based)
+       ============================================== */
+    function buildFileTree(files) {
+        var root = { name: '', children: {}, files: [] };
+        files.forEach(function (file) {
+            var parts = file.split('/');
+            var current = root;
+            for (var i = 0; i < parts.length - 1; i++) {
+                if (!current.children[parts[i]]) current.children[parts[i]] = { name: parts[i], children: {}, files: [] };
+                current = current.children[parts[i]];
+            }
+            current.files.push(parts[parts.length - 1]);
+        });
+        return root;
+    }
+
+    function renderTree(node, container, depth, parentPath) {
+        depth = depth || 0;
+        parentPath = parentPath || '';
+        Object.keys(node.children).sort().forEach(function (name) {
+            var child = node.children[name];
+            var folderPrefix = parentPath ? parentPath + '/' + name : name;
+            var folderDiv = document.createElement('div');
+            folderDiv.className = 'folder-container';
+            var folderRow = document.createElement('div');
+            folderRow.className = 'folder-row';
+            folderRow.style.paddingLeft = (12 + depth * 16) + 'px';
+            var chevron = document.createElement('i');
+            chevron.className = 'codicon codicon-chevron-right chevron';
+            var icon = document.createElement('i');
+            icon.className = 'codicon codicon-folder folder-icon';
+            var nameSpan = document.createElement('span');
+            nameSpan.className = 'folder-name';
+            nameSpan.textContent = name;
+            folderRow.appendChild(chevron);
+            folderRow.appendChild(icon);
+            folderRow.appendChild(nameSpan);
+            var childrenDiv = document.createElement('div');
+            childrenDiv.className = 'folder-children';
+            var isOpen = folderExpandedState[folderPrefix] || false;
+            if (isOpen) {
+                chevron.classList.add('open');
+                icon.className = 'codicon codicon-folder-opened folder-icon';
+                childrenDiv.classList.add('open');
+            }
+            folderRow.setAttribute('data-path', folderPrefix);
+            folderRow.oncontextmenu = function(e) { showContextMenu(e, folderPrefix, true); };
+            folderRow.onclick = function () {
+                var open = childrenDiv.classList.toggle('open');
+                chevron.classList.toggle('open');
+                icon.className = open ? 'codicon codicon-folder-opened folder-icon' : 'codicon codicon-folder folder-icon';
+                folderExpandedState[folderPrefix] = open;
+            };
+            folderDiv.appendChild(folderRow);
+            folderDiv.appendChild(childrenDiv);
+            renderTree(child, childrenDiv, depth + 1, folderPrefix);
+            container.appendChild(folderDiv);
+        });
+        node.files.slice().sort().forEach(function (fileName) {
+            var fullPath = parentPath ? parentPath + '/' + fileName : fileName;
+            var fileItem = document.createElement('div');
+            fileItem.className = 'file-item';
+            fileItem.style.paddingLeft = (12 + depth * 16) + 'px';
+            fileItem.setAttribute('data-path', fullPath);
+            var icon = document.createElement('i');
+            icon.className = getFileIcon(fileName);
+            var nameSpan = document.createElement('span');
+            nameSpan.className = 'file-name';
+            nameSpan.textContent = fileName;
+            var statusCode = gitStatus[fullPath] || gitStatus[fullPath.replace(/\\\\/g, '/')] || '';
+            if (statusCode) {
+                var badge = document.createElement('span');
+                badge.className = 'git-badge git-' + statusCode.toLowerCase();
+                badge.textContent = statusCode;
+                fileItem.appendChild(badge);
+            }
+            fileItem.draggable = true;
+            fileItem.ondragstart = (function(fp) { return function(e) {
+                e.dataTransfer.setData('text/plain', fp);
+                e.dataTransfer.effectAllowed = 'copy';
+                fileItem.classList.add('dragging');
+            }; })(fullPath);
+            fileItem.ondragend = function() {
+                fileItem.classList.remove('dragging');
+            };
+            fileItem.appendChild(icon);
+            fileItem.appendChild(nameSpan);
+            fileItem.oncontextmenu = function(e) { showContextMenu(e, fullPath, false); };
+            fileItem.onclick = (function (fp) { return function () { openFile(fp); }; })(fullPath);
+            container.appendChild(fileItem);
+        });
+    }
+
+    function getFileIcon(filename) {
+        var ext = filename.split('.').pop().toLowerCase();
+        var map = {
+            'go':'codicon codicon-go','js':'codicon codicon-javascript','ts':'codicon codicon-typescript',
+            'py':'codicon codicon-python','html':'codicon codicon-html','css':'codicon codicon-css',
+            'json':'codicon codicon-json','md':'codicon codicon-markdown','yaml':'codicon codicon-yaml',
+            'yml':'codicon codicon-yaml','xml':'codicon codicon-xml','svg':'codicon codicon-svg',
+            'sql':'codicon codicon-database','sh':'codicon codicon-terminal','ps1':'codicon codicon-terminal',
+            'bat':'codicon codicon-terminal','rs':'codicon codicon-rust','java':'codicon codicon-java',
+            'cpp':'codicon codicon-cpp','c':'codicon codicon-c','h':'codicon codicon-h',
+            'png':'codicon codicon-file-media','jpg':'codicon codicon-file-media','jpeg':'codicon codicon-file-media',
+            'ico':'codicon codicon-file-media','svg':'codicon codicon-file-media',
+            'exe':'codicon codicon-file-binary','mod':'codicon codicon-go','sum':'codicon codicon-go',
+        };
+        if (filename === 'Dockerfile') return 'codicon codicon-docker';
+        if (filename === 'Makefile' || filename === 'makefile') return 'codicon codicon-symbol-misc';
+        if (filename === 'LICENSE') return 'codicon codicon-law';
+        if (filename === '.gitignore') return 'codicon codicon-git-ignore';
+        if (filename.startsWith('.env')) return 'codicon codicon-variable';
+        if (filename.startsWith('.')) return 'codicon codicon-gear';
+        return map[ext] || 'codicon codicon-file';
+    }
+
+    async function loadFiles() {
+        var overlay = document.getElementById('loadingOverlay');
+        overlay.classList.add('active');
+        try {
+            var results = await Promise.all([
+                window.go.app.GetAllFiles(),
+                window.go.app.GetGitStatus()
+            ]);
+            allFiles = results[0];
+            gitStatus = results[1] || {};
+            var fileTree = document.getElementById('fileTree');
+            fileTree.innerHTML = '';
+            fileCount = allFiles.length;
+            var treeData = buildFileTree(allFiles);
+            renderTree(treeData, fileTree, 0);
+            updateFileCount();
+            loadGitBranch();
+        } catch (error) {
+            console.error('Error loading files:', error);
+        } finally {
+            overlay.classList.remove('active');
+        }
+    }
+
+    /* ==============================================
+       Context Menu
+       ============================================== */
+    var contextTarget = null;
+    var contextIsFolder = false;
+
+    function showContextMenu(event, path, isFolder) {
+        event.preventDefault();
+        event.stopPropagation();
+        contextTarget = path;
+        contextIsFolder = isFolder;
+        var menu = document.getElementById('contextMenu');
+        
+        // Position near the cursor, but keep within viewport
+        var x = Math.min(event.clientX, window.innerWidth - 200);
+        var y = Math.min(event.clientY, window.innerHeight - 250);
+        menu.style.left = x + 'px';
+        menu.style.top = y + 'px';
+        
+        // Show/hide relevant actions based on whether target is a file or folder
+        var items = menu.querySelectorAll('.context-menu-item');
+        items.forEach(function(item) {
+            var action = item.getAttribute('data-action');
+            if (action === 'new-file' || action === 'new-folder') {
+                item.style.display = isFolder ? '' : 'none';
+            }
         });
         
-        // Terminal
-        async function handleTerminalInput(event) {
-            if (event.key === 'Enter') {
-                const input = event.target.value;
-                event.target.value = '';
-                appendToTerminal(`$ ${input}`);
-                
+        menu.classList.add('visible');
+    }
+
+    function hideContextMenu() {
+        var menu = document.getElementById('contextMenu');
+        menu.classList.remove('visible');
+        contextTarget = null;
+        contextIsFolder = false;
+    }
+
+    async function contextMenuAction(action) {
+        hideContextMenu();
+        if (!contextTarget) return;
+        
+        switch (action) {
+            case 'new-file':
+                var name = prompt('Enter file name:', 'new-file.txt');
+                if (!name) return;
                 try {
-                    const result = await window.go.app.RunCommand(input, '');
-                    appendToTerminal(result);
-                } catch (error) {
-                    appendToTerminal(`Error: ${error.message}`);
+                    var filePath = contextTarget ? contextTarget + '/' + name : name;
+                    await window.go.app.WriteFile(filePath, '');
+                    showToast('success', 'Created: ' + name);
+                    await loadFiles();
+                } catch(e) { showToast('error', 'Failed: ' + e.message); }
+                break;
+            case 'new-folder':
+                var name = prompt('Enter folder name:', 'new-folder');
+                if (!name) return;
+                try {
+                    var folderPath = contextTarget ? contextTarget + '/' + name : name;
+                    await window.go.app.CreateFolder(folderPath);
+                    showToast('success', 'Folder created: ' + name);
+                    await loadFiles();
+                } catch(e) { showToast('error', 'Failed: ' + e.message); }
+                break;
+            case 'rename':
+                var oldName = contextTarget.split('/').pop();
+                var folderPart = contextTarget.split('/').slice(0, -1).join('/');
+                var newName = prompt('Rename "' + oldName + '" to:', oldName);
+                if (!newName || newName === oldName) return;
+                try {
+                    var newPath = folderPart ? folderPart + '/' + newName : newName;
+                    await window.go.app.RenameFile(contextTarget, newPath);
+                    showToast('success', 'Renamed to: ' + newName);
+                    await loadFiles();
+                } catch(e) { showToast('error', 'Failed: ' + e.message); }
+                break;
+            case 'delete':
+                var fileName = contextTarget.split('/').pop();
+                if (!confirm('Delete "' + fileName + '"? This cannot be undone.')) return;
+                try {
+                    await window.go.app.DeleteFile(contextTarget);
+                    showToast('success', 'Deleted: ' + fileName);
+                    await loadFiles();
+                } catch(e) { showToast('error', 'Failed: ' + e.message); }
+                break;
+            case 'copy-path':
+                try {
+                    await navigator.clipboard.writeText(contextTarget);
+                    showToast('info', 'Copied: ' + contextTarget);
+                } catch(e) {
+                    // Fallback for environments without clipboard API
+                    var ta = document.createElement('textarea');
+                    ta.value = contextTarget;
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                    showToast('info', 'Copied: ' + contextTarget);
                 }
-            }
+                break;
         }
-        
-        function appendToTerminal(text) {
-            const output = document.getElementById('terminalOutput');
-            const line = document.createElement('div');
-            line.textContent = text;
-            output.appendChild(line);
-            output.scrollTop = output.scrollHeight;
+    }
+
+    // Close context menu on click outside
+    document.addEventListener('click', function(e) {
+        var menu = document.getElementById('contextMenu');
+        if (menu.classList.contains('visible') && !menu.contains(e.target)) {
+            hideContextMenu();
         }
-        
-        function clearTerminal() {
-            document.getElementById('terminalOutput').innerHTML = '';
+    });
+
+    // Close context menu on Escape
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && document.getElementById('contextMenu').classList.contains('visible')) {
+            hideContextMenu();
         }
-        
-        // Custom Apps
-        async function loadApps() {
+    });
+
+    // Handle context menu on file tree root (empty space)
+    document.getElementById('fileTree').addEventListener('contextmenu', function(e) {
+        e.preventDefault();
+        // If clicked directly on the file-tree container (not on an item), show root-level menu
+        if (e.target === this || e.target.classList.contains('file-tree')) {
+            showContextMenu(e, '', true);
+        }
+    });
+
+    // Handle context menu on specific items via their own oncontextmenu handlers
+    document.addEventListener('contextmenu', function(e) {
+        if (e.target.closest('.file-item') || e.target.closest('.folder-row')) {
+            e.preventDefault();
+        }
+    });
+
+    function updateFileCount() {
+        var fc = document.getElementById('fileCount');
+        if (fileCount > 0) {
+            var gitCount = Object.keys(gitStatus).length;
+            fc.innerHTML = '<i class="codicon codicon-file"></i> ' + fileCount + ' files' + (gitCount > 0 ? ' <span style="color:var(--accent-orange)">(' + gitCount + ' changed)</span>' : '');
+            document.getElementById('statusReady').textContent = 'Ready';
+        } else {
+            fc.innerHTML = '';
+            document.getElementById('statusReady').textContent = 'Empty project';
+        }
+    }
+
+    async function refreshFileTree() {
+        showToast('info', 'Refreshing...');
+        await loadFiles();
+        renderSourceControl();
+    }
+
+    var refreshFileTreeTimer;
+    async function refreshFileTreeSilent() {
+        if (refreshFileTreeTimer) clearTimeout(refreshFileTreeTimer);
+        refreshFileTreeTimer = setTimeout(async function () {
             try {
-                const apps = await window.go.app.ListApps();
-                const appList = document.getElementById('appList');
-                appList.innerHTML = '';
-                
-                if (apps.length === 0) {
-                    appList.innerHTML = '<div style="padding: 20px; text-align: center; color: #858585;">No custom apps loaded</div>';
-                    return;
+                var results = await Promise.all([
+                    window.go.app.GetAllFiles(),
+                    window.go.app.GetGitStatus()
+                ]);
+                allFiles = results[0];
+                gitStatus = results[1] || {};
+                var fileTree = document.getElementById('fileTree');
+                if (fileTree) {
+                    fileTree.innerHTML = '';
+                    fileCount = allFiles.length;
+                    var treeData = buildFileTree(allFiles);
+                    renderTree(treeData, fileTree, 0);
                 }
-                
-                apps.forEach(app => {
-                    const appItem = document.createElement('div');
-                    appItem.className = 'app-item';
-                    appItem.innerHTML = `
-                        <div class="app-icon">🚀</div>
-                        <div class="app-info">
-                            <div class="app-name">${app}</div>
-                            <div class="app-desc">Custom Agent App</div>
-                        </div>
-                        <button class="run-btn" onclick="runApp('${app}')">Run</button>
-                    `;
-                    appList.appendChild(appItem);
-                });
-            } catch (error) {
-                console.error('Error loading apps:', error);
-            }
-        }
-        
-        async function runApp(appName) {
-            appendToTerminal(`Running ${appName}...`);
-            try {
-                const result = await window.go.app.RunApp(appName, []);
-                appendToTerminal(result);
-            } catch (error) {
-                appendToTerminal(`Error running ${appName}: ${error}`);
-            }
-        }
-        
-        // Project info
-        async function loadProjectInfo() {
-            try {
-                const path = await window.go.app.GetProjectRoot();
-                document.getElementById('projectPath').textContent = `Project: ${path.split('/').pop()}`;
-            } catch (error) {
-                console.error('Error loading project info:', error);
-            }
-        }
-        
-        // Keyboard shortcuts
-        document.addEventListener('keydown', async (e) => {
-            // Ctrl+S to save
-            if (e.ctrlKey && e.key === 's') {
-                e.preventDefault();
-                if (currentFile) {
-                    try {
-                        await window.go.app.WriteFile(currentFile, editor.getValue());
-                        appendToTerminal(`✓ Saved ${currentFile}`);
-                    } catch (error) {
-                        appendToTerminal(`✗ Error saving: ${error}`);
-                    }
-                }
-            }
-            
-            // Ctrl+` to toggle terminal focus
-            if (e.ctrlKey && e.key === '`') {
-                e.preventDefault();
-                document.getElementById('terminal-input').focus();
-            }
-            
-            // Ctrl+Shift+A to open AI panel
-            if (e.ctrlKey && e.shiftKey && e.key === 'A') {
-                e.preventDefault();
-                toggleAIPanel();
-            }
+                updateFileCount();
+                if (currentActivity === 'source-control') renderSourceControl();
+            } catch (error) { console.error('Auto-refresh error:', error); }
+        }, 200);
+    }
+
+    /* ==============================================
+       Git Branch
+       ============================================== */
+    async function loadGitBranch() {
+        try {
+            var result = await window.go.app.RunCommand('git rev-parse --abbrev-ref HEAD', '');
+            if (result.trim()) document.getElementById('scBranch').textContent = result.trim();
+        } catch(e) {}
+    }
+
+    /* ==============================================
+       File Operations
+       ============================================== */
+    async function openFile(filename) {
+        try {
+            var content = await window.go.app.ReadFile(filename);
+            currentFile = filename;
+            openFiles.set(filename, content);
+            editor.setValue(content);
+            updateTabs();
+            var lang = getLanguageFromExtension(filename);
+            monaco.editor.setModelLanguage(editor.getModel(), lang);
+            document.querySelectorAll('.file-item').forEach(function (el) { el.classList.remove('active'); });
+            var active = document.querySelector('.file-item[data-path="' + filename.replace(/"/g,'\\"') + '"]');
+            if (active) active.classList.add('active');
+        } catch (error) { showToast('error', 'Error opening ' + filename + ': ' + error.message); }
+    }
+
+    function getLanguageFromExtension(filename) {
+        var ext = filename.split('.').pop().toLowerCase();
+        var langMap = {
+            'go':'go','js':'javascript','ts':'typescript','py':'python','html':'html','css':'css',
+            'json':'json','md':'markdown','yaml':'yaml','yml':'yaml','toml':'toml',
+            'rs':'rust','java':'java','cpp':'cpp','c':'c','sh':'shell','ps1':'powershell',
+            'bat':'bat','xml':'xml','svg':'xml','sql':'sql','rb':'ruby','php':'php',
+            'swift':'swift','kt':'kotlin','dart':'dart'
+        };
+        return langMap[ext] || 'plaintext';
+    }
+
+    function updateTabs() {
+        var container = document.getElementById('tabs');
+        container.innerHTML = '';
+        openFiles.forEach(function (content, filename) {
+            var tab = document.createElement('div');
+            tab.className = 'tab' + (filename === currentFile ? ' active' : '');
+            var icon = document.createElement('i');
+            icon.className = getFileIcon(filename);
+            var label = document.createElement('span');
+            label.className = 'tab-label';
+            label.textContent = filename.split('/').pop();
+            var close = document.createElement('span');
+            close.className = 'tab-close codicon codicon-close';
+            close.onclick = function (e) { e.stopPropagation(); closeFile(filename); };
+            tab.appendChild(icon);
+            tab.appendChild(label);
+            tab.appendChild(close);
+            tab.onclick = function (e) { if (!e.target.classList.contains('tab-close')) switchToFile(filename); };
+            container.appendChild(tab);
         });
-        
-        // AI Provider functions
-        async function loadProviders() {
-            try {
-                const config = await window.go.app.GetConfig();
-                providers = config.providers;
-                activeProvider = config.activeProvider;
-                
-                // Update status bar
-                const providerInfo = providers[activeProvider];
-                if (providerInfo && providerInfo.enabled) {
-                    document.getElementById('aiProvider').textContent = `AI: ${providerInfo.name} ✓`;
+        var activeTab = container.querySelector('.tab.active');
+        if (activeTab) activeTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    }
+
+    function switchToFile(filename) {
+        currentFile = filename;
+        editor.setValue(openFiles.get(filename));
+        updateTabs();
+        document.querySelectorAll('.file-item').forEach(function(el){el.classList.remove('active');});
+        var active = document.querySelector('.file-item[data-path="' + filename.replace(/"/g,'\\"') + '"]');
+        if (active) active.classList.add('active');
+    }
+
+    function closeFile(filename) {
+        openFiles.delete(filename);
+        if (currentFile === filename) {
+            currentFile = openFiles.keys().next().value || null;
+            if (currentFile) editor.setValue(openFiles.get(currentFile));
+            else editor.setValue('// No file open\\n// Select a file from the explorer');
+        }
+        updateTabs();
+    }
+
+    /* ==============================================
+       Search
+       ============================================== */
+    async function searchFiles() {
+        var query = document.getElementById('searchInput').value.trim().toLowerCase();
+        var resultsDiv = document.getElementById('searchResults');
+        if (!query) { resultsDiv.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:16px;text-align:center">Type a query and press Enter</div>'; return; }
+        try {
+            var files = await window.go.app.GetAllFiles();
+            var matches = files.filter(function(f){ return f.toLowerCase().indexOf(query) !== -1; });
+            if (matches.length === 0) {
+                resultsDiv.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:16px;text-align:center">No results found</div>';
+            } else {
+                resultsDiv.innerHTML = '';
+                matches.forEach(function(file){
+                    var item = document.createElement('div');
+                    item.className = 'search-result-item';
+                    var icon = document.createElement('i');
+                    icon.className = getFileIcon(file);
+                    var nameSpan = document.createElement('span');
+                    // Highlight matching portion
+                    var idx = file.toLowerCase().indexOf(query);
+                    nameSpan.innerHTML = escapeHtml(file.slice(0,idx)) + '<strong>' + escapeHtml(file.slice(idx, idx+query.length)) + '</strong>' + escapeHtml(file.slice(idx+query.length));
+                    item.appendChild(icon);
+                    item.appendChild(nameSpan);
+                    item.onclick = (function(fp){ return function(){ switchActivity('explorer'); openFile(fp); }; })(file);
+                    resultsDiv.appendChild(item);
+                });
+            }
+        } catch(error) {
+            resultsDiv.innerHTML = '<div style="color:var(--accent-red);font-size:12px;padding:16px">Error: ' + escapeHtml(error.message) + '</div>';
+        }
+    }
+
+    /* ==============================================
+       Source Control
+       ============================================== */
+    var scExpanded = {};
+
+    function toggleScSection(header) {
+        var body = header.nextElementSibling;
+        var chevron = header.querySelector('.sc-chevron');
+        if (body) { body.classList.toggle('open'); chevron.classList.toggle('open'); }
+    }
+
+    function renderSourceControl() {
+        var changeList = document.getElementById('scChangeList');
+        changeList.innerHTML = '';
+        var count = 0;
+        var sorted = Object.keys(gitStatus).sort();
+        sorted.forEach(function(file){
+            var status = gitStatus[file];
+            count++;
+            var item = document.createElement('div');
+            item.className = 'sc-change-item';
+            var badge = document.createElement('span');
+            badge.className = 'git-badge git-' + status.toLowerCase();
+            badge.textContent = status;
+            var icon = document.createElement('i');
+            icon.className = getFileIcon(file);
+            var name = document.createElement('span');
+            name.className = 'sc-change-name';
+            name.textContent = file;
+            item.appendChild(badge);
+            item.appendChild(icon);
+            item.appendChild(name);
+            item.onclick = function(){ switchActivity('explorer'); openDiffView(file); };
+            changeList.appendChild(item);
+        });
+        document.getElementById('scChangeCount').textContent = count;
+    }
+
+    async function gitCommit() {
+        var msg = document.getElementById('scMessage').value.trim();
+        if (!msg) { showToast('error', 'Enter a commit message first'); return; }
+        try {
+            var result1 = await window.go.app.RunCommand('git add -A', '');
+            var result2 = await window.go.app.RunCommand('git commit -m "' + msg.replace(/"/g,'\\"') + '"', '');
+            document.getElementById('scMessage').value = '';
+            showToast('success', 'Committed: ' + msg.split('\\n')[0]);
+            await loadFiles();
+            renderSourceControl();
+            loadGitBranch();
+        } catch(error) {
+            showToast('error', 'Commit failed: ' + error.message);
+        }
+    }
+
+    /* ==============================================
+       AI Providers Panel
+       ============================================== */
+    // Cache of fetched models per provider (populated from API)
+    var fetchedModels = {};
+
+    /* Track which provider is currently being configured */
+    var selectedProviderKey = null;
+
+    function renderAiProviders() {
+        var container = document.getElementById('aiProvidersList');
+        container.innerHTML = '';
+        var keys = Object.keys(providers);
+        if (keys.length === 0) {
+            container.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:20px;text-align:center">No AI providers found. Check your configuration.</div>';
+            return;
+        }
+        keys.forEach(function(key) {
+            var provider = providers[key];
+            var card = document.createElement('div');
+            card.className = 'ai-provider-card';
+            if (key === selectedProviderKey) card.classList.add('selected');
+            if (key === activeProvider && provider.enabled) card.classList.add('active-provider');
+
+            // ====== Provider row (always visible) ======
+            var row = document.createElement('div');
+            row.className = 'ai-provider-row';
+            row.onclick = function() {
+                if (selectedProviderKey === key) {
+                    selectedProviderKey = null;
                 } else {
-                    document.getElementById('aiProvider').textContent = 'AI: Not configured';
+                    selectedProviderKey = key;
                 }
-            } catch (error) {
-                console.error('Error loading providers:', error);
+                renderAiProviders();
+            };
+
+            var statusDot = document.createElement('span');
+            statusDot.className = 'provider-status-dot' + (provider.enabled ? ' active' : '');
+
+            var nameSpan = document.createElement('span');
+            nameSpan.className = 'ai-provider-name';
+            nameSpan.textContent = provider.name;
+
+            var epSpan = document.createElement('span');
+            epSpan.className = 'ai-provider-endpoint';
+            epSpan.textContent = provider.baseURL || '';
+
+            var arrow = document.createElement('i');
+            arrow.className = 'codicon codicon-chevron-right ai-provider-chevron';
+            if (key === selectedProviderKey) arrow.classList.add('open');
+
+            row.appendChild(statusDot);
+            row.appendChild(nameSpan);
+            row.appendChild(epSpan);
+            row.appendChild(arrow);
+            card.appendChild(row);
+
+            // ====== Expanded config area ======
+            if (key === selectedProviderKey) {
+                var configArea = document.createElement('div');
+                configArea.className = 'ai-provider-config';
+
+                // Show endpoint again for clarity
+                var epField = document.createElement('div');
+                epField.className = 'provider-field';
+                var epLabel = document.createElement('label');
+                epLabel.textContent = 'API Endpoint';
+                var epInput = document.createElement('input');
+                epInput.type = 'text';
+                epInput.value = provider.baseURL || '';
+                epInput.readOnly = true;
+                epInput.className = 'provider-endpoint-input';
+                epField.appendChild(epLabel);
+                epField.appendChild(epInput);
+                configArea.appendChild(epField);
+
+                // API Key input
+                var keyField = document.createElement('div');
+                keyField.className = 'provider-field';
+                var keyLabel = document.createElement('label');
+                keyLabel.textContent = 'API Key';
+                if (provider.apiKey) keyLabel.textContent += ' (saved)';
+                var keyInput = document.createElement('input');
+                keyInput.type = 'password';
+                keyInput.id = 'prov-api-' + key;
+                keyInput.value = provider.apiKey || '';
+                keyInput.placeholder = 'Enter your ' + provider.name + ' API key';
+                keyInput.setAttribute('autofocus', '');
+                keyField.appendChild(keyLabel);
+                keyField.appendChild(keyInput);
+                configArea.appendChild(keyField);
+
+                // Model input — always show an editable text field pre-filled with saved model
+                var modelField = document.createElement('div');
+                modelField.className = 'provider-field';
+                var modelLabelEl = document.createElement('label');
+                modelLabelEl.textContent = 'Model';
+                modelField.appendChild(modelLabelEl);
+
+                var modelInputRow = document.createElement('div');
+                modelInputRow.style.cssText = 'display:flex;gap:4px;align-items:stretch';
+
+                var modelInput = document.createElement('input');
+                modelInput.type = 'text';
+                modelInput.id = 'prov-model-' + key;
+                modelInput.value = provider.model || '';
+                modelInput.placeholder = 'e.g. gpt-4o, claude-3.5-sonnet, llama-3.1-8b';
+                modelInput.style.cssText = 'flex:1;padding:6px 8px;background:var(--bg-input);border:1px solid var(--border-color);border-radius:var(--radius-sm);color:var(--text-primary);font-size:12px;font-family:var(--font-mono);outline:none';
+                modelInputRow.appendChild(modelInput);
+
+                // Fetch Models button (optional convenience)
+                var fetchBtn = document.createElement('button');
+                fetchBtn.className = 'btn btn-secondary btn-sm';
+                fetchBtn.innerHTML = '<i class="codicon codicon-cloud-download"></i> Fetch';
+                fetchBtn.title = 'Fetch available models from API';
+                fetchBtn.onclick = function() {
+                    fetchBtn.disabled = true;
+                    fetchBtn.innerHTML = 'Fetching...';
+                    window.go.app.GetProviderModels(key).then(function(models) {
+                        if (models && models.length > 0) {
+                            fetchedModels[key] = models;
+                            // Show a dropdown with fetched models alongside the input
+                            var datalist = document.createElement('datalist');
+                            datalist.id = 'prov-models-' + key;
+                            models.forEach(function(m) {
+                                var opt = document.createElement('option');
+                                opt.value = m;
+                                datalist.appendChild(opt);
+                            });
+                            var existing = document.getElementById('prov-models-' + key);
+                            if (existing) existing.remove();
+                            document.body.appendChild(datalist);
+                            modelInput.setAttribute('list', 'prov-models-' + key);
+                            showToast('success', 'Found ' + models.length + ' models — select from dropdown');
+                        } else {
+                            showToast('error', 'No models returned. Check your API key.');
+                        }
+                    }).catch(function(e) {
+                        showToast('error', 'Failed to fetch models: ' + e.message);
+                    }).finally(function() {
+                        fetchBtn.disabled = false;
+                        fetchBtn.innerHTML = '<i class="codicon codicon-cloud-download"></i> Fetch';
+                    });
+                };
+                modelInputRow.appendChild(fetchBtn);
+                modelField.appendChild(modelInputRow);
+                configArea.appendChild(modelField);
+
+                // Action buttons
+                var btnRow = document.createElement('div');
+                btnRow.className = 'provider-btn-row';
+                var saveBtn = document.createElement('button');
+                saveBtn.className = 'btn btn-primary btn-sm';
+                saveBtn.innerHTML = '<i class="codicon codicon-check"></i> ' + (key === activeProvider && provider.enabled ? 'Saved & Active' : 'Save & Activate');
+                saveBtn.onclick = function(){ saveSingleProvider(key); };
+                btnRow.appendChild(saveBtn);
+                configArea.appendChild(btnRow);
+                card.appendChild(configArea);
+            }
+
+            // If this provider is active and no one is selected, show a small active badge
+            if (key === activeProvider && provider.enabled && key !== selectedProviderKey) {
+                var activeBadge = document.createElement('span');
+                activeBadge.className = 'provider-active-badge';
+                activeBadge.textContent = 'Active';
+                row.appendChild(activeBadge);
+            } else if (key === selectedProviderKey && key === activeProvider && provider.enabled) {
+                // Also add badge when card is selected
+                var activeBadge = document.createElement('span');
+                activeBadge.className = 'provider-active-badge';
+                activeBadge.textContent = 'Active';
+                row.appendChild(activeBadge);
+            }
+
+            container.appendChild(card);
+        });
+    }
+
+    async function saveSingleProvider(key) {
+        var apiKey = document.getElementById('prov-api-' + key).value;
+        if (!apiKey.trim()) { showToast('error', 'API Key is required'); return; }
+
+        var modelInput = document.getElementById('prov-model-' + key);
+        var model = modelInput ? modelInput.value.trim() : '';
+
+        try {
+            await window.go.app.UpdateProvider(key, apiKey, model, true);
+            await window.go.app.SetActiveProvider(key);
+            showToast('success', providerName(key) + ' configured and activated');
+            await loadProviders();
+            renderAiProviders();
+        } catch(error) {
+            showToast('error', 'Failed to save: ' + error.message);
+        }
+    }
+
+    // activateProvider removed — saving always activates now via saveSingleProvider
+
+    function providerName(key) {
+        var names = { 'openrouter': 'OpenRouter', 'nvidia': 'NVIDIA', 'anthropic': 'Anthropic', 'openai': 'OpenAI' };
+        return names[key] || (key.charAt(0).toUpperCase() + key.slice(1));
+    }
+
+    /* ==============================================
+       Terminal (xterm.js)
+       ============================================== */
+    var xterm = null;
+    var xtermFit = null;
+    var terminalMaximized = false;
+
+    function initTerminal() {
+        var container = document.getElementById('xtermContainer');
+        if (!container || typeof Terminal === 'undefined') {
+            setTimeout(initTerminal, 200);
+            return;
+        }
+        xterm = new Terminal({
+            theme: {
+                background: '#1a1a1a',
+                foreground: '#d4d4d4',
+                cursor: '#00ff00',
+                selectionBackground: '#264f78',
+                black: '#1a1a1a',
+                red: '#f44336',
+                green: '#4ec9b0',
+                yellow: '#ff9d00',
+                blue: '#007acc',
+                magenta: '#c586c0',
+                cyan: '#4fc1ff',
+                white: '#d4d4d4',
+                brightBlack: '#5a5a5a',
+                brightRed: '#f44336',
+                brightGreen: '#4ec9b0',
+                brightYellow: '#ff9d00',
+                brightBlue: '#007acc',
+                brightMagenta: '#c586c0',
+                brightCyan: '#4fc1ff',
+                brightWhite: '#ffffff'
+            },
+            cursorBlink: true,
+            cursorStyle: 'bar',
+            fontSize: 13,
+            fontFamily: "'Consolas', 'Courier New', monospace",
+            allowTransparency: true,
+            convertEol: true,
+            letterSpacing: 0,
+            lineHeight: 1.3,
+            scrollback: 3000,
+            cols: 80,
+            rows: 10
+        });
+        xtermFit = new FitAddon.FitAddon();
+        xterm.loadAddon(xtermFit);
+        xterm.open(container);
+        xtermFit.fit();
+
+        // Focus terminal on click
+        xterm.onRender(function() {
+            setTimeout(function() { if (document.activeElement !== document.body) xterm.focus(); }, 50);
+        });
+
+        // Send user input to Go backend
+        xterm.onData(function(data) {
+            window.go.app.WriteTerminal(data).catch(function(err) {
+                // If terminal is dead, restart it
+                if (err && err.message && err.message.indexOf('not running') !== -1) {
+                    window.go.app.StartTerminal().then(function() {
+                        xterm.write('\r\n[Restarting terminal...]\r\n');
+                        setTimeout(function() {
+                            window.go.app.WriteTerminal('\r');
+                        }, 300);
+                    }).catch(function(){});
+                }
+            });
+        });
+
+        // Handle resize
+        xterm.onResize(function(size) {
+            // Send resize to the terminal via OSC 8 sequence (not critical)
+        });
+
+        // Write initial message
+        xterm.write('MugSoft Terminal ready\r\n');
+
+        // Listen for terminal output from Go backend
+        if (window.runtime && window.runtime.EventsOn) {
+            window.runtime.EventsOn('terminal-output', function(data) {
+                if (xterm && !xterm._disposed) {
+                    xterm.write(data);
+                }
+            });
+        }
+    }
+
+    // Start terminal when Wails runtime is ready
+    (function waitForRuntime() {
+        if (window.runtime && window.runtime.EventsOn) {
+            initTerminal();
+        } else {
+            setTimeout(waitForRuntime, 100);
+        }
+    })();
+
+    // Focus terminal on Ctrl+`
+    document.addEventListener('keydown', function(e) {
+        if (e.ctrlKey && e.key === '`') {
+            e.preventDefault();
+            if (xterm) xterm.focus();
+        }
+    });
+
+    function clearTerminal() {
+        if (xterm) xterm.clear();
+    }
+
+    function toggleTerminalSize() {
+        var panel = document.getElementById('terminalPanel');
+        if (!panel) return;
+        terminalMaximized = !terminalMaximized;
+        if (terminalMaximized) {
+            panel.style.height = '50vh';
+            panel.style.maxHeight = '50vh';
+            document.querySelector('.terminal-btn .codicon').className = 'codicon codicon-chevron-down';
+        } else {
+            panel.style.height = '180px';
+            panel.style.maxHeight = '50vh';
+            document.querySelector('.terminal-btn .codicon').className = 'codicon codicon-chevron-up';
+        }
+        if (xtermFit) setTimeout(function(){ xtermFit.fit(); }, 50);
+    }
+
+    function toggleTerminal() {
+        var panel = document.getElementById('terminalPanel');
+        if (!panel) return;
+        var isVisible = panel.style.display !== 'none';
+        panel.style.display = isVisible ? 'none' : 'flex';
+        if (!isVisible && xtermFit) setTimeout(function(){ xtermFit.fit(); }, 50);
+    }
+
+    function killTerminal() {
+        window.go.app.StopTerminal().then(function() {
+            if (xterm) {
+                xterm.write('\r\n[Terminal killed]\r\n');
+                // Restart after a brief delay
+                setTimeout(function() {
+                    window.go.app.StartTerminal().then(function() {
+                        if (xterm) {
+                            xterm.write('[Restarted]\r\n');
+                        }
+                    }).catch(function(){});
+                }, 500);
+            }
+        }).catch(function(err) {
+            showToast('error', 'Failed to stop terminal: ' + err.message);
+        });
+    }
+
+    /* ==============================================
+       Project Info
+       ============================================== */
+    async function loadProjectInfo() {
+        // Project root is shown in settings; git branch in status bar
+        try { loadGitBranch(); } catch(e) {}
+    }
+
+    /* ==============================================
+       Keyboard Shortcuts
+       ============================================== */
+    document.addEventListener('keydown', function(e) {
+        // Ctrl+S Save
+        if (e.ctrlKey && e.key === 's') { e.preventDefault();
+            if (currentFile) { window.go.app.WriteFile(currentFile, editor.getValue()).then(function(){
+                showToast('success','Saved ' + currentFile.split('/').pop());
+            }).catch(function(err){ showToast('error','Error saving: '+err.message); }); }
+        }
+        // Ctrl+` Terminal focus
+        if (e.ctrlKey && e.key === '`') { e.preventDefault(); if (xterm) xterm.focus(); }
+        // Ctrl+Shift+E Explorer
+        if (e.ctrlKey && e.shiftKey && e.key === 'E') { e.preventDefault(); switchActivity('explorer'); }
+        // Ctrl+Shift+F Search
+        if (e.ctrlKey && e.shiftKey && e.key === 'F') { e.preventDefault(); switchActivity('search'); }
+        // Ctrl+Shift+G Source Control
+        if (e.ctrlKey && e.shiftKey && e.key === 'G') { e.preventDefault(); switchActivity('source-control'); }
+        // Ctrl+Shift+D Run & Debug
+        if (e.ctrlKey && e.shiftKey && e.key === 'D') { e.preventDefault(); switchActivity('run-debug'); }
+        // F5 Run current config
+        if (e.key === 'F5') { e.preventDefault(); if (currentActivity === 'run-debug') runCurrentConfig(); }
+        // Ctrl+Shift+A AI Chat
+        if (e.ctrlKey && e.shiftKey && e.key === 'A') { e.preventDefault(); switchActivity('ai-chat'); }
+        // Escape: close settings or diff view
+        if (e.key === 'Escape') {
+            if (document.getElementById('settingsModal').classList.contains('active')) closeSettings();
+            else if (isDiffView) closeDiffView();
+        }
+        // F2 Rename current file
+        if (e.key === 'F2' && currentFile) { e.preventDefault();
+            var oldName = currentFile.split('/').pop();
+            var folderPart = currentFile.split('/').slice(0, -1).join('/');
+            var newName = prompt('Rename "' + oldName + '" to:', oldName);
+            if (newName && newName !== oldName) {
+                var newPath = folderPart ? folderPart + '/' + newName : newName;
+                window.go.app.RenameFile(currentFile, newPath).then(function() {
+                    showToast('success', 'Renamed to: ' + newName);
+                    currentFile = newPath;
+                    loadFiles();
+                }).catch(function(err) { showToast('error', 'Rename failed: ' + err.message); });
             }
         }
-        
-        function openSettings() {
-            const modal = document.getElementById('settingsModal');
-            modal.classList.add('active');
-            renderProviderList();
+        // Delete current file
+        if (e.key === 'Delete' && currentFile && !e.target.closest('input') && !e.target.closest('textarea')) {
+            e.preventDefault();
+            var fileName = currentFile.split('/').pop();
+            if (confirm('Delete "' + fileName + '"? This cannot be undone.')) {
+                window.go.app.DeleteFile(currentFile).then(function() {
+                    showToast('success', 'Deleted: ' + fileName);
+                    closeFile(currentFile);
+                    loadFiles();
+                }).catch(function(err) { showToast('error', 'Delete failed: ' + err.message); });
+            }
         }
-        
-        function closeSettings() {
-            document.getElementById('settingsModal').classList.remove('active');
+        // Ctrl+W Close current tab
+        if (e.ctrlKey && e.key === 'w') { e.preventDefault(); if (currentFile) closeFile(currentFile); }
+        // Ctrl+Enter Commit in SC
+        if (e.ctrlKey && e.key === 'Enter' && currentActivity === 'source-control') { e.preventDefault(); gitCommit(); }
+    });
+
+    /* ==============================================
+       Diff View
+       ============================================== */
+    async function openDiffView(filename) {
+        if (!editor) return;
+        try {
+            // Fetch git refs and file contents in parallel
+            var results = await Promise.all([
+                window.go.app.GetGitRefs(),
+                window.go.app.GetOriginalContent(filename),
+                window.go.app.ReadFile(filename)
+            ]);
+            gitRefs = results[0] || [];
+            var originalContent = results[1] || '';
+            var modifiedContent = results[2];
+            var lang = getLanguageFromExtension(filename);
+
+            // Show diff container, hide normal editor
+            document.getElementById('editor').style.display = 'none';
+            var diffContainer = document.getElementById('diffEditorContainer');
+            diffContainer.style.display = 'flex';
+            diffContainer.style.flexDirection = 'column';
+            document.getElementById('diffFilePath').textContent = filename;
+
+            // Dispose previous diff editor if any
+            if (diffEditor) {
+                diffEditor.dispose();
+                diffEditor = null;
+                diffEditorModels = null;
+            }
+
+            // Create diff editor
+            var diffDom = document.getElementById('diffEditor');
+            diffEditor = monaco.editor.createDiffEditor(diffDom, {
+                theme: 'vs-dark',
+                fontSize: 14,
+                enableSplitViewResizing: true,
+                renderSideBySide: true,
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                automaticLayout: true,
+                originalEditable: false,
+                wordWrap: 'on'
+            });
+
+            // Create models and set them
+            var originalModel = monaco.editor.createModel(originalContent, lang);
+            var modifiedModel = monaco.editor.createModel(modifiedContent, lang);
+            diffEditorModels = { original: originalModel, modified: modifiedModel };
+            diffEditor.setModel({ original: originalModel, modified: modifiedModel });
+
+            isDiffView = true;
+            currentDiffFile = filename;
+            currentDiffRef = 'HEAD';
+
+            // Populate the git ref dropdown
+            populateRefDropdown();
+
+            // Update file tree selection
+            document.querySelectorAll('.file-item').forEach(function(el) { el.classList.remove('active'); });
+            var active = document.querySelector('.file-item[data-path="' + filename.replace(/"/g,'\\"') + '"]');
+            if (active) active.classList.add('active');
+
+            // Update tabs to show diff indicator
+            updateDiffTab(filename);
+
+        } catch(error) {
+            showToast('error', 'Error opening diff: ' + error.message);
         }
+    }
+
+    function populateRefDropdown() {
+        var select = document.getElementById('diffRefSelect');
+        select.innerHTML = '';
         
-        function renderProviderList() {
-            const container = document.getElementById('providerList');
-            container.innerHTML = '';
-            
-            Object.entries(providers).forEach(([key, provider]) => {
-                const card = document.createElement('div');
-                card.className = 'provider-card' + (activeProvider === key ? ' active' : '');
-                card.innerHTML = `
-                    <div class="provider-header">
-                        <div>
-                            <div class="provider-name">${provider.name}</div>
-                            <div class="provider-model">${provider.model}</div>
-                        </div>
-                        <div class="provider-actions">
-                            <label class="radio-label">
-                                <input type="radio" name="activeProvider" value="${key}" ${activeProvider === key ? 'checked' : ''} onchange="selectProvider('${key}')">
-                                Active
-                            </label>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>API Key</label>
-                        <input type="password" id="apiKey-${key}" value="${provider.apiKey || ''}" placeholder="Enter your API key">
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Model</label>
-                            <input type="text" id="model-${key}" value="${provider.model}" placeholder="Model name">
-                        </div>
-                    </div>
-                `;
-                container.appendChild(card);
+        // Add HEAD as the first option
+        var headOpt = document.createElement('option');
+        headOpt.value = 'HEAD';
+        headOpt.textContent = 'HEAD (committed)';
+        select.appendChild(headOpt);
+        
+        // Add branches and tags
+        if (gitRefs.length > 0) {
+            gitRefs.forEach(function(ref) {
+                var opt = document.createElement('option');
+                opt.value = ref;
+                opt.textContent = ref;
+                select.appendChild(opt);
             });
         }
         
-        function selectProvider(key) {
-            activeProvider = key;
-            renderProviderList();
+        select.value = 'HEAD';
+    }
+
+    async function reloadDiff() {
+        if (!isDiffView || !currentDiffFile) return;
+        var select = document.getElementById('diffRefSelect');
+        var newRef = select.value;
+        if (newRef === currentDiffRef) return;
+        
+        currentDiffRef = newRef;
+        
+        try {
+            var originalContent = await window.go.app.GetFileAtRef(currentDiffFile, newRef);
+            originalContent = originalContent || '';
+            
+            // Update the original model
+            if (diffEditorModels && diffEditorModels.original) {
+                diffEditorModels.original.setValue(originalContent);
+            }
+            
+            // Update the diff tab label
+            var tabLabel = document.querySelector('.diff-tab .tab-label');
+            if (tabLabel) {
+                tabLabel.textContent = 'Diff: ' + currentDiffFile.split('/').pop() + ' (' + newRef + ')';
+            }
+            
+            showToast('info', 'Comparing against ' + newRef);
+        } catch(error) {
+            showToast('error', 'Error loading ref: ' + error.message);
+        }
+    }
+
+    function updateDiffTab(filename) {
+        var container = document.getElementById('tabs');
+        container.innerHTML = '';
+        // Show a single diff tab
+        var tab = document.createElement('div');
+        tab.className = 'tab active diff-tab';
+        var icon = document.createElement('i');
+        icon.className = 'codicon codicon-diff';
+        var label = document.createElement('span');
+        label.className = 'tab-label';
+        label.textContent = 'Diff: ' + filename.split('/').pop() + ' (HEAD)';
+        var close = document.createElement('span');
+        close.className = 'tab-close codicon codicon-close';
+        close.onclick = function(e) { e.stopPropagation(); closeDiffView(); };
+        var badge = document.createElement('span');
+        badge.className = 'diff-badge';
+        badge.textContent = gitStatus[filename] || 'M';
+        tab.appendChild(icon);
+        tab.appendChild(label);
+        tab.appendChild(badge);
+        tab.appendChild(close);
+        container.appendChild(tab);
+    }
+
+    function closeDiffView() {
+        if (!isDiffView) return;
+
+        // Dispose diff editor first (it owns the models)
+        if (diffEditor) {
+            diffEditor.dispose();
+            diffEditor = null;
+        }
+
+        // Then dispose the models
+        if (diffEditorModels) {
+            if (diffEditorModels.original) diffEditorModels.original.dispose();
+            if (diffEditorModels.modified) diffEditorModels.modified.dispose();
+            diffEditorModels = null;
+        }
+
+        // Show normal editor, hide diff container
+        document.getElementById('editor').style.display = 'block';
+        document.getElementById('diffEditorContainer').style.display = 'none';
+
+        isDiffView = false;
+        currentDiffFile = null;
+
+        // If there's an open file, refresh its content in case it was modified
+        if (currentFile) {
+            window.go.app.ReadFile(currentFile).then(function(content) {
+                openFiles.set(currentFile, content);
+                editor.setValue(content);
+            }).catch(function() {});
+        }
+
+        // Restore tabs
+        updateTabs();
+    }
+
+    /* ==============================================
+       AI Providers & Settings
+       ============================================== */
+    // Hardcoded default providers — always shown even if Go config is empty
+    var defaultProviders = {
+        'openrouter': { name: 'OpenRouter', apiKey: '', baseURL: 'https://openrouter.ai/api/v1', model: 'anthropic/claude-3.5-sonnet', enabled: false },
+        'nvidia': { name: 'NVIDIA', apiKey: '', baseURL: 'https://integrate.api.nvidia.com/v1', model: 'meta/llama-3.1-8b-instruct', enabled: false },
+        'anthropic': { name: 'Anthropic', apiKey: '', baseURL: 'https://api.anthropic.com/v1', model: 'claude-3-5-sonnet-20241022', enabled: false },
+        'openai': { name: 'OpenAI', apiKey: '', baseURL: 'https://api.openai.com/v1', model: 'gpt-4o', enabled: false }
+    };
+
+    async function loadProviders() {
+        try {
+            var config = await window.go.app.GetConfig();
+            if (config && config.providers && Object.keys(config.providers).length > 0) {
+                providers = config.providers;
+                activeProvider = config.activeProvider || 'openrouter';
+                // Merge in any defaults that might be missing
+                Object.keys(defaultProviders).forEach(function(k) {
+                    if (!providers[k]) providers[k] = JSON.parse(JSON.stringify(defaultProviders[k]));
+                });
+            } else {
+                // Fallback to hardcoded defaults
+                providers = JSON.parse(JSON.stringify(defaultProviders));
+                activeProvider = 'openrouter';
+                console.log('Using hardcoded default providers (no config from backend)');
+            }
+        } catch(error) {
+            console.error('Error loading providers, using defaults:', error);
+            providers = JSON.parse(JSON.stringify(defaultProviders));
+            activeProvider = 'openrouter';
         }
         
-        async function saveSettings() {
-            try {
-                // Save each provider's settings
-                for (const [key, provider] of Object.entries(providers)) {
-                    const apiKey = document.getElementById(`apiKey-${key}`).value;
-                    const model = document.getElementById(`model-${key}`).value;
-                    const enabled = (key === activeProvider && apiKey.trim() !== '');
-                    
-                    await window.go.app.UpdateProvider(key, apiKey, model, enabled);
+        // Update status indicators
+        var providerInfo = providers[activeProvider];
+        var indicator = document.getElementById('aiStatusIndicator');
+        var label = document.getElementById('aiProvider');
+        var hIndicator = document.getElementById('headerAiIndicator');
+        var hLabel = document.getElementById('headerAiLabel');
+        if (providerInfo && providerInfo.enabled) {
+            if (indicator) { indicator.className = 'status-indicator'; label.textContent = 'AI: ' + providerInfo.name; }
+            if (hIndicator) { hIndicator.className = 'status-indicator'; hLabel.textContent = providerInfo.name; }
+        } else {
+            if (indicator) { indicator.className = 'status-indicator inactive'; label.textContent = 'AI: Off'; }
+            if (hIndicator) { hIndicator.className = 'status-indicator inactive'; hLabel.textContent = 'Off'; }
+        }
+    }
+
+    function openSettings() {
+        document.getElementById('settingsModal').classList.add('active');
+        loadProjectDir();
+    }
+
+    function closeSettings() { document.getElementById('settingsModal').classList.remove('active'); }
+
+    async function saveSettings() {
+        try {
+            var dirInput = document.getElementById('projectDirInput');
+            if (dirInput && dirInput.value.trim()) {
+                var currentPath = await window.go.app.GetProjectRoot();
+                if (dirInput.value.trim() !== currentPath) { await window.go.app.SetProjectRoot(dirInput.value.trim()); }
+            }
+            showToast('success', 'Settings saved');
+            closeSettings();
+            loadProjectInfo();
+            loadFiles();
+        } catch(error) { showToast('error', 'Error saving settings: ' + error.message); }
+    }
+
+    async function loadProjectDir() {
+        try {
+            var path = await window.go.app.GetProjectRoot();
+            document.getElementById('projectDirInput').value = path;
+        } catch(error) { console.error('Error loading project dir:', error); }
+    }
+
+    async function browseProjectDir() {
+        try {
+            var path = await window.go.app.BrowseForProject();
+            if (path) { document.getElementById('projectDirInput').value = path; }
+        } catch(error) { showToast('error', 'Failed to open directory dialog: ' + error.message); }
+    }
+
+    /* ==============================================
+       AI Chat
+       ============================================== */
+    document.addEventListener('keydown', function(e) {
+        if (e.ctrlKey && e.key === 'Enter') {
+            if (document.activeElement === document.getElementById('aiQuestion')) { e.preventDefault(); askAI(); }
+        }
+    });
+
+    function copyCodeBlock(btn) {
+        var pre = btn.parentElement.querySelector('pre code');
+        if (!pre) return;
+        var text = pre.textContent;
+        navigator.clipboard.writeText(text).then(function() {
+            btn.innerHTML = '<i class="codicon codicon-check"></i> Copied!';
+            setTimeout(function() {
+                btn.innerHTML = '<i class="codicon codicon-copy"></i> Copy';
+            }, 2000);
+        }).catch(function() {
+            // Fallback
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            btn.innerHTML = '<i class="codicon codicon-check"></i> Copied!';
+            setTimeout(function() {
+                btn.innerHTML = '<i class="codicon codicon-copy"></i> Copy';
+            }, 2000);
+        });
+    }
+
+    async function askAI() {
+        var questionInput = document.getElementById('aiQuestion');
+        var question = questionInput.value.trim();
+        var chatHistory = document.getElementById('aiChatHistory');
+        if (!question) return;
+        var providerInfo = providers[activeProvider];
+        if (!providerInfo || !providerInfo.enabled) {
+            showToast('error', 'Configure an AI provider first!');
+            switchActivity('ai-providers');
+            return;
+        }
+        var placeholder = chatHistory.querySelector('div[style]');
+        if (placeholder) placeholder.remove();
+        var userDiv = document.createElement('div');
+        userDiv.className = 'chat-message user';
+        userDiv.innerHTML = '<span class="msg-label">You</span><div class="msg-content">' + escapeHtml(question) + '</div>';
+        chatHistory.appendChild(userDiv);
+        questionInput.value = '';
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+        document.getElementById('typingIndicator').classList.add('active');
+        try {
+            var openFilesList = Array.from(openFiles.keys());
+            var answer = await window.go.app.AskAI(question, openFilesList);
+            document.getElementById('typingIndicator').classList.remove('active');
+            var escapedAnswer = escapeHtml(answer);
+            var formattedAnswer = escapedAnswer
+                .replace(/```(\\w+)?\\n([\\s\\S]*?)```/g, function(match, lang, code) {
+                    var langClass = lang ? ' class="hljs language-' + lang + '"' : ' class="hljs"';
+                    var langLabel = lang ? '<span class="code-lang-label">' + lang + '</span>' : '';
+                    return '<div class="code-block-wrapper"><button class="copy-code-btn" onclick="copyCodeBlock(this)"><i class="codicon codicon-copy"></i> Copy</button>' + langLabel + '<pre><code' + langClass + '>' + code + '</code></pre></div>';
+                })
+                .replace(/`([^`]+)`/g, '<code>$1</code>')
+                .replace(/\\*\\*([^*]+)\\*\\*/g, '<strong>$1</strong>')
+                .replace(/\\n/g, '<br>');
+            var aiDiv = document.createElement('div');
+            aiDiv.className = 'chat-message assistant';
+            aiDiv.innerHTML = '<span class="msg-label">AI</span><div class="msg-content">' + formattedAnswer + '</div>';
+            chatHistory.appendChild(aiDiv);
+            // Apply syntax highlighting to code blocks
+            aiDiv.querySelectorAll('pre code').forEach(function(el) {
+                if (typeof hljs !== 'undefined') {
+                    hljs.highlightElement(el);
                 }
-                
-                // Set active provider
-                await window.go.app.SetActiveProvider(activeProvider);
-                
-                appendToTerminal('✓ Settings saved');
-                closeSettings();
-                loadProviders();
-            } catch (error) {
-                appendToTerminal(`✗ Error saving settings: ${error}`);
+            });
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+            
+            // Helper to render a pending review card with per-file buttons
+            var pendingReviewCard = null;
+            function renderPendingReview() {
+                window.go.app.GetPendingChanges().then(function(pending) {
+                    if (!pending || pending.length === 0) {
+                        // All files have been individually handled — remove the card
+                        if (pendingReviewCard && pendingReviewCard.parentElement) {
+                            // Replace with a summary showing everything was handled
+                            pendingReviewCard.innerHTML = '<div class="pending-header accepted"><i class="codicon codicon-check"></i> All Changes Handled</div>' +
+                                '<div class="pending-body accepted-body">All file changes have been accepted or rejected.</div>';
+                            pendingReviewCard.style.borderColor = 'var(--accent-green)';
+                        }
+                        return;
+                    }
+                    if (!pendingReviewCard) {
+                        pendingReviewCard = document.createElement('div');
+                        pendingReviewCard.className = 'chat-message pending-review';
+                        chatHistory.appendChild(pendingReviewCard);
+                    }
+                    var fileListHtml = '';
+                    pending.forEach(function(pc) {
+                        var escapedPath = escapeHtml(pc.filePath);
+                        fileListHtml += '<div class="pending-file-row" data-file="' + escapedPath + '">' +
+                            '<i class="codicon codicon-file"></i> ' +
+                            '<span class="pending-file-path">' + escapedPath + '</span>' +
+                            '<span class="pending-file-actions">' +
+                            '<button class="pending-file-accept" onclick="acceptSingleFile(\'' + escapedPath.replace(/'/g, "\\'") + '\')" title="Accept ' + escapedPath + '"><i class="codicon codicon-check"></i></button>' +
+                            '<button class="pending-file-reject" onclick="rejectSingleFile(\'' + escapedPath.replace(/'/g, "\\'") + '\')" title="Reject ' + escapedPath + '"><i class="codicon codicon-close"></i></button>' +
+                            '</span>' +
+                            '</div>';
+                    });
+                    pendingReviewCard.innerHTML = 
+                        '<div class="pending-header"><i class="codicon codicon-warning"></i> Pending File Changes</div>' +
+                        '<div class="pending-body">The AI wants to create or modify ' + pending.length + ' file(s):</div>' +
+                        '<div class="pending-file-list">' + fileListHtml + '</div>' +
+                        '<div class="pending-actions">' +
+                        '<button class="btn btn-primary btn-sm" onclick="acceptPendingChanges()"><i class="codicon codicon-check"></i> Accept All</button>' +
+                        '<button class="btn btn-secondary btn-sm" onclick="rejectPendingChanges()"><i class="codicon codicon-close"></i> Reject All</button>' +
+                        '</div>';
+                    chatHistory.scrollTop = chatHistory.scrollHeight;
+                }).catch(function(e) {
+                    console.error('Error checking pending changes:', e);
+                });
+            }
+            renderPendingReview();
+        } catch (error) {
+            document.getElementById('typingIndicator').classList.remove('active');
+            var errDiv = document.createElement('div');
+            errDiv.className = 'chat-message error-msg';
+            errDiv.innerHTML = '<span class="msg-label">Error</span><div class="msg-content">' + escapeHtml(error.message) + '</div>';
+            chatHistory.appendChild(errDiv);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+    }
+
+    /* ==============================================
+       Drag Resize — Left Side Panel
+       ============================================== */
+    (function() {
+        var sidePanel = document.getElementById('sidePanel');
+        var handle = document.getElementById('sideResizeHandle');
+        var isResizing = false;
+
+        // Restore persisted width
+        var savedWidth = localStorage.getItem('mugsoft-left-panel-width');
+        if (savedWidth) {
+            var w = parseInt(savedWidth, 10);
+            if (w >= 200 && w <= 500) {
+                sidePanel.style.width = w + 'px';
+                sidePanel.style.minWidth = 'auto';
+                sidePanel.style.maxWidth = 'none';
             }
         }
-        
-        // AI Panel functions
-        function toggleAIPanel() {
-            const panel = document.getElementById('aiPanel');
-            panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
-        }
-        
-        function closeAIPanel() {
-            document.getElementById('aiPanel').style.display = 'none';
-        }
-        
-        async function askAI() {
-            const questionInput = document.getElementById('aiQuestion');
-            const question = questionInput.value.trim();
-            const chatHistory = document.getElementById('aiChatHistory');
-            
-            if (!question) return;
-            
-            // Check if AI is configured
-            const providerInfo = providers[activeProvider];
-            if (!providerInfo || !providerInfo.enabled) {
-                alert('Please configure your AI provider in Settings first!');
-                openSettings();
-                return;
+
+        handle.addEventListener('mousedown', function(e) {
+            isResizing = true;
+            handle.classList.add('active');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+        });
+        document.addEventListener('mousemove', function(e) {
+            if (!isResizing) return;
+            var width = Math.max(200, Math.min(500, e.clientX - sidePanel.getBoundingClientRect().left));
+            sidePanel.style.width = width + 'px';
+            sidePanel.style.minWidth = 'auto';
+            sidePanel.style.maxWidth = 'none';
+        });
+        document.addEventListener('mouseup', function() {
+            if (isResizing) {
+                isResizing = false;
+                handle.classList.remove('active');
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+                // Persist width across sessions
+                var w = parseInt(sidePanel.style.width, 10);
+                if (w >= 200 && w <= 500) {
+                    localStorage.setItem('mugsoft-left-panel-width', w);
+                }
             }
-            
-            // Add user question to chat
-            chatHistory.innerHTML += `<div style="margin-bottom: 10px;"><strong style="color: #007acc;">You:</strong> ${question}</div>`;
-            questionInput.value = '';
-            
-            // Get context from open files
-            const openFilesList = Array.from(openFiles.keys());
-            
-            try {
-                appendToTerminal(`Asking AI: ${question}`);
-                const answer = await window.go.app.AskAI(question, openFilesList);
-                
-                // Format answer with markdown-like styling
-                const formattedAnswer = answer
-                    .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre style="background: #1e1e1e; padding: 10px; border-radius: 4px; overflow-x: auto;">$2</pre>')
-                    .replace(/`([^`]+)`/g, '<code style="background: #1e1e1e; padding: 2px 6px; border-radius: 3px;">$1</code>')
-                    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-                    .replace(/\n/g, '<br>');
-                
-                chatHistory.innerHTML += `<div style="margin-bottom: 10px;"><strong style="color: #0e7a0d;">AI:</strong> ${formattedAnswer}</div>`;
-                chatHistory.scrollTop = chatHistory.scrollHeight;
-                
-                appendToTerminal('✓ AI response received');
-            } catch (error) {
-                chatHistory.innerHTML += `<div style="margin-bottom: 10px; color: #f44336;"><strong style="color: #f44336;">Error:</strong> ${error.message}</div>`;
-                appendToTerminal(`✗ AI error: ${error.message}`);
+        });
+    })();
+
+    /* ==============================================
+       Drag Resize — Right Panel (AI Chat)
+       ============================================== */
+    (function() {
+        var rightPanel = document.getElementById('sidePanelRight');
+        var handle = document.getElementById('sideResizeHandleRight');
+        if (!rightPanel || !handle) return;
+        var isResizing = false;
+
+        // Restore persisted width
+        var savedWidth = localStorage.getItem('mugsoft-right-panel-width');
+        if (savedWidth) {
+            var w = parseInt(savedWidth, 10);
+            if (w >= 200 && w <= 500) {
+                rightPanel.style.width = w + 'px';
+                rightPanel.style.minWidth = 'auto';
+                rightPanel.style.maxWidth = 'none';
             }
         }
+
+        handle.addEventListener('mousedown', function(e) {
+            isResizing = true;
+            handle.classList.add('active');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+        });
+        document.addEventListener('mousemove', function(e) {
+            if (!isResizing) return;
+            var rightEdge = rightPanel.getBoundingClientRect().right;
+            var width = Math.max(200, Math.min(500, rightEdge - e.clientX));
+            rightPanel.style.width = width + 'px';
+            rightPanel.style.minWidth = 'auto';
+            rightPanel.style.maxWidth = 'none';
+        });
+        document.addEventListener('mouseup', function() {
+            if (isResizing) {
+                isResizing = false;
+                handle.classList.remove('active');
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+                // Persist width across sessions
+                var w = parseInt(rightPanel.style.width, 10);
+                if (w >= 200 && w <= 500) {
+                    localStorage.setItem('mugsoft-right-panel-width', w);
+                }
+            }
+        });
+    })();
+
+    /* ==============================================
+       Drag Resize — Terminal
+       ============================================== */
+    (function() {
+        var terminal = document.getElementById('terminalPanel');
+        var handle = document.getElementById('terminalResize');
+        var isResizing = false;
+        handle.addEventListener('mousedown', function(e) {
+            isResizing = true;
+            handle.classList.add('active');
+            document.body.style.cursor = 'row-resize';
+            document.body.style.userSelect = 'none';
+        });
+        document.addEventListener('mousemove', function(e) {
+            if (!isResizing) return;
+            var totalHeight = window.innerHeight;
+            var terminalTop = terminal.getBoundingClientRect().top;
+            var height = Math.max(100, Math.min(totalHeight * 0.6, totalHeight - terminalTop - 10));
+            terminal.style.height = height + 'px';
+            terminal.style.minHeight = 'auto';
+            terminal.style.maxHeight = 'none';
+        });
+        document.addEventListener('mouseup', function() {
+            if (isResizing) { isResizing = false; handle.classList.remove('active'); document.body.style.cursor = ''; document.body.style.userSelect = ''; }
+        });
+    })();
+
+
+    /* ==============================================
+       Run & Debug
+       ============================================== */
+    var debugConfigs = [];
+    var activeConfigIndex = -1;
+    var runningProcess = false;
+
+    function loadDebugConfigs() {
+        var saved = localStorage.getItem('mugsoft-debug-configs');
+        if (saved) {
+            try { debugConfigs = JSON.parse(saved); } catch(e) { debugConfigs = []; }
+        }
+        if (!saved || debugConfigs.length === 0) {
+            debugConfigs = [
+                { name: 'Go: Build & Run', command: 'go run .', cwd: '' },
+                { name: 'Go: Build', command: 'go build -o output.exe .', cwd: '' },
+                { name: 'Go: Test', command: 'go test ./...', cwd: '' },
+                { name: 'Node: Run', command: 'node index.js', cwd: '' },
+                { name: 'Python: Run', command: 'python main.py', cwd: '' }
+            ];
+        }
+    }
+
+    function saveDebugConfigs() {
+        try { localStorage.setItem('mugsoft-debug-configs', JSON.stringify(debugConfigs)); } catch(e) {}
+    }
+
+    function renderDebugConfigs() {
+        var list = document.getElementById('debugConfigList');
+        list.innerHTML = '';
+        debugConfigs.forEach(function(cfg, i) {
+            var item = document.createElement('div');
+            item.className = 'debug-config-item' + (i === activeConfigIndex ? ' active' : '');
+            var icon = document.createElement('i');
+            icon.className = 'codicon codicon-debug-alt';
+            var name = document.createElement('span');
+            name.className = 'debug-config-name';
+            name.textContent = cfg.name;
+            var cmd = document.createElement('span');
+            cmd.className = 'debug-config-cmd';
+            cmd.textContent = cfg.command;
+            var delBtn = document.createElement('button');
+            delBtn.className = 'config-del-btn';
+            delBtn.innerHTML = '<i class="codicon codicon-close"></i>';
+            delBtn.onclick = function(e) { e.stopPropagation(); deleteConfig(i); };
+            item.appendChild(icon);
+            item.appendChild(name);
+            item.appendChild(cmd);
+            item.appendChild(delBtn);
+            item.onclick = function() { selectConfig(i); };
+            list.appendChild(item);
+        });
+        if (debugConfigs.length === 0) {
+            list.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:16px;text-align:center">No configurations. Click + to add one.</div>';
+        }
+        updateRunButton();
+    }
+
+    function selectConfig(index) {
+        activeConfigIndex = index;
+        renderDebugConfigs();
+    }
+
+    function updateRunButton() {
+        var btn = document.getElementById('runBtn');
+        btn.disabled = activeConfigIndex < 0 || runningProcess;
+    }
+
+    function showAddConfigDialog() {
+        var name = prompt('Configuration name:', 'Custom Run');
+        if (!name) return;
+        var cmd = prompt('Command to run:', '');
+        if (!cmd) return;
+        debugConfigs.push({ name: name, command: cmd, cwd: '' });
+        activeConfigIndex = debugConfigs.length - 1;
+        saveDebugConfigs();
+        renderDebugConfigs();
+        showToast('success', 'Configuration added: ' + name);
+    }
+
+    function deleteConfig(index) {
+        if (!confirm('Delete "' + debugConfigs[index].name + '"?')) return;
+        debugConfigs.splice(index, 1);
+        if (activeConfigIndex === index) activeConfigIndex = -1;
+        else if (activeConfigIndex > index) activeConfigIndex--;
+        saveDebugConfigs();
+        renderDebugConfigs();
+    }
+
+    var debugOutputTimer;
+    function appendDebugOutput(text, className) {
+        var output = document.getElementById('debugOutput');
+        var placeholder = output.querySelector('.debug-output-placeholder');
+        if (placeholder) placeholder.remove();
+        var line = document.createElement('div');
+        line.className = 'debug-line' + (className ? ' ' + className : '');
+        line.textContent = text;
+        output.appendChild(line);
+        output.scrollTop = output.scrollHeight;
+    }
+
+    async function runCurrentConfig() {
+        if (activeConfigIndex < 0 || runningProcess) return;
+        var cfg = debugConfigs[activeConfigIndex];
+        runningProcess = true;
+        updateRunButton();
+        document.getElementById('stopBtn').disabled = false;
+
+        appendDebugOutput('$ ' + cfg.command, 'prompt');
+        appendDebugOutput('Running "' + cfg.name + '"...', 'info');
+
+        try {
+            var result = await window.go.app.RunCommand(cfg.command, cfg.cwd);
+            if (result) {
+                result.split('\n').forEach(function(line){ appendDebugOutput(line); });
+            }
+            appendDebugOutput('Process exited with code 0', 'success');
+        } catch(error) {
+            appendDebugOutput(error.message || 'Process exited with error', 'error');
+        } finally {
+            runningProcess = false;
+            updateRunButton();
+            document.getElementById('stopBtn').disabled = true;
+        }
+    }
+
+    function stopRunning() {
+        // The Go backend doesn't support process termination yet
+        // This is a UI placeholder
+        showToast('info', 'Process termination not yet implemented');
+    }
+
+    function clearDebugOutput() {
+        var output = document.getElementById('debugOutput');
+        output.innerHTML = '<div class="debug-output-placeholder">Configure a run task and press <span class="kbd">F5</span> to start</div>';
+    }
+
+    /* ==============================================
+       Accept/Reject Pending File Changes
+       ============================================== */
+    async function acceptPendingChanges() {
+        try {
+            var result = await window.go.app.ApplyPendingChanges();
+            if (result && result.length > 0) {
+                showToast('success', result.length + ' file(s) created/updated');
+                // Refresh the file tree
+                loadFiles();
+                // Replace the review card with accepted summary
+                var reviewDiv = document.querySelector('.pending-review');
+                if (reviewDiv) {
+                    reviewDiv.innerHTML = '<div class="pending-header accepted"><i class="codicon codicon-check"></i> Changes Accepted</div>' +
+                        '<div class="pending-body accepted-body">' + result.length + ' file(s) were created/updated.</div>';
+                    reviewDiv.style.borderColor = 'var(--accent-green)';
+                }
+            }
+        } catch(error) {
+            showToast('error', 'Failed to apply changes: ' + error.message);
+        }
+    }
+
+    async function rejectPendingChanges() {
+        try {
+            await window.go.app.ClearPendingChanges();
+            showToast('info', 'File changes rejected');
+            // Replace the review card with rejected summary
+            var reviewDiv = document.querySelector('.pending-review');
+            if (reviewDiv) {
+                reviewDiv.innerHTML = '<div class="pending-header rejected"><i class="codicon codicon-close"></i> Changes Rejected</div>' +
+                    '<div class="pending-body rejected-body">No files were modified.</div>';
+                reviewDiv.style.borderColor = 'var(--accent-red)';
+            }
+        } catch(error) {
+            showToast('error', 'Error: ' + error.message);
+        }
+    }
+
+    async function acceptSingleFile(filePath) {
+        try {
+            var result = await window.go.app.AcceptSingleFile(filePath);
+            if (result) {
+                showToast('success', 'Created: ' + result);
+                loadFiles();
+                // Remove the row for this file
+                var row = document.querySelector('.pending-file-row[data-file="' + filePath.replace(/"/g, '\\"') + '"]');
+                if (row) {
+                    row.classList.add('accepted');
+                    row.querySelector('.pending-file-actions').innerHTML = '<span class="pending-file-done accepted-icon"><i class="codicon codicon-check"></i></span>';
+                }
+                // Re-render the entire review card to update counts
+                var pendingSummary = document.querySelector('.pending-body');
+                var pending = await window.go.app.GetPendingChanges();
+                if (pending && pending.length > 0) {
+                    pendingSummary.textContent = 'The AI wants to create or modify ' + pending.length + ' file(s):';
+                } else {
+                    // All files handled — update the card
+                    var reviewDiv = document.querySelector('.pending-review');
+                    if (reviewDiv) {
+                        reviewDiv.innerHTML = '<div class="pending-header accepted"><i class="codicon codicon-check"></i> All Changes Handled</div>' +
+                            '<div class="pending-body accepted-body">All file changes have been accepted or rejected.</div>';
+                        reviewDiv.style.borderColor = 'var(--accent-green)';
+                    }
+                }
+            }
+        } catch(error) {
+            showToast('error', 'Failed: ' + error.message);
+        }
+    }
+
+    async function rejectSingleFile(filePath) {
+        try {
+            await window.go.app.RejectSingleFile(filePath);
+            showToast('info', 'Rejected: ' + filePath);
+            // Remove the row for this file
+            var row = document.querySelector('.pending-file-row[data-file="' + filePath.replace(/"/g, '\\"') + '"]');
+            if (row) {
+                row.classList.add('rejected');
+                row.querySelector('.pending-file-actions').innerHTML = '<span class="pending-file-done rejected-icon"><i class="codicon codicon-close"></i></span>';
+            }
+            // Update counts
+            var pendingSummary = document.querySelector('.pending-body');
+            var pending = await window.go.app.GetPendingChanges();
+            if (pending && pending.length > 0) {
+                pendingSummary.textContent = 'The AI wants to create or modify ' + pending.length + ' file(s):';
+            } else {
+                // All files handled — update the card
+                var reviewDiv = document.querySelector('.pending-review');
+                if (reviewDiv) {
+                    reviewDiv.innerHTML = '<div class="pending-header accepted"><i class="codicon codicon-check"></i> All Changes Handled</div>' +
+                        '<div class="pending-body accepted-body">All file changes have been accepted or rejected.</div>';
+                    reviewDiv.style.borderColor = 'var(--accent-green)';
+                }
+            }
+        } catch(error) {
+            showToast('error', 'Error: ' + error.message);
+        }
+    }
     </script>
 </body>
 </html>

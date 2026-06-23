@@ -29,3 +29,7 @@ package-lock.json
 
 # Wails JS bindings (regenerated on build)
 frontend/wailsjs/
+nul
+# NPM cache files
+frontend/package.json.md5
+frontend/package-lock.json

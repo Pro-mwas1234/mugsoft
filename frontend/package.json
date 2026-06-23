@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "MugSoft Agent Frontend",
   "scripts": {
-    "build": "echo 'Frontend built (static files)'",
-    "dev": "echo 'Frontend dev (static files)'"
+    "build": "node -e \"const fs=require('fs');fs.mkdirSync('dist',{recursive:true});fs.copyFileSync('index.html','dist/index.html');fs.copyFileSync('style.css','dist/style.css')\""
   }
 }
