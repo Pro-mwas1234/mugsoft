@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MugSoft Agent</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">Explorer</div>
+            <div class="file-tree" id="fileTree">
+                <!-- Files will be loaded here -->
+            </div>
+        </div>
+        
+        <!-- Main Area -->
+        <div class="main-area">
+            <!-- Tabs -->
+            <div class="tabs" id="tabs">
+                <!-- Open file tabs -->
+            </div>
+            
+            <!-- Editor -->
+            <div class="editor-container">
+                <div id="editor"></div>
+            </div>
+            
+            <!-- Terminal -->
+            <div class="terminal-panel">
+                <div class="terminal-header">
+                    <span>Terminal</span>
+                    <button onclick="clearTerminal()">Clear</button>
+                </div>
+                <div class="terminal-output" id="terminalOutput">
+                    <div>Welcome to MugSoft Agent Terminal</div>
+                    <div>Type commands below...</div>
+                    <br>
+                </div>
+                <div class="terminal-input-line">
+                    <span class="terminal-prompt">$</span>
+                    <input type="text" id="terminal-input" placeholder="Enter command..." onkeypress="handleTerminalInput(event)">
+                </div>
+            </div>
+            
+            <!-- Status Bar -->
+            <div class="status-bar">
+                <div class="status-left">
+                    <span>Ready</span>
+                </div>
+                <div class="status-right">
+                    <span id="projectPath">Project: Loading...</span>
+                    <span id="aiProvider">AI: Not configured</span>
+                    <button class="status-btn" onclick="openSettings()">⚙️ Settings</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Custom Apps Panel -->
+        <div class="apps-panel">
+            <div class="apps-header">Custom Apps</div>
+            <div class="app-list" id="appList">
+                <!-- Apps will be loaded here -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Settings</h2>
+                <button class="modal-close" onclick="closeSettings()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-section">
+                    <h3>AI Provider</h3>
+                    <p style="color: #858585; font-size: 13px; margin-bottom: 16px;">
+                        Choose your AI provider and enter your API key. Only one provider can be active at a time.
+                    </p>
+                    <div id="providerList">
+                        <!-- Provider cards will be loaded here -->
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeSettings()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveSettings()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- AI Chat Panel (for asking questions) -->
+    <div class="apps-panel" id="aiPanel" style="display: none;">
+        <div class="apps-header">
+            AI Assistant
+            <button onclick="closeAIPanel()" style="background: none; border: none; color: #858585; cursor: pointer; float: right;">&times;</button>
+        </div>
+        <div style="padding: 10px; flex: 1; display: flex; flex-direction: column; gap: 10px;">
+            <div id="aiChatHistory" style="flex: 1; overflow-y: auto; font-size: 13px; color: #cccccc;"></div>
+            <textarea id="aiQuestion" placeholder="Ask AI something..." style="width: 100%; height: 80px; background: #1e1e1e; border: 1px solid #3c3c3c; color: #cccccc; padding: 8px; font-family: inherit; font-size: 13px; resize: none;"></textarea>
+            <button class="btn btn-primary" onclick="askAI()">Ask AI</button>
+        </div>
+    </div>
+    
+    <!-- Load Monaco Editor from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.min.js"></script>
+    
+    <script>
+        let editor;
+        let currentFile = null;
+        let openFiles = new Map();
+        let providers = {};
+        let activeProvider = '';
+        
+        // Initialize Monaco Editor
+        require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+        require(['vs/editor/editor.main'], function() {
+            editor = monaco.editor.create(document.getElementById('editor'), {
+                value: '// Welcome to MugSoft Agent\n// Open a file to start editing',
+                language: 'plaintext',
+                theme: 'vs-dark',
+                automaticLayout: true,
+                fontSize: 14,
+                minimap: { enabled: true },
+                scrollBeyondLastLine: false,
+            });
+            
+            // Load initial data
+            loadFiles();
+            loadApps();
+            loadProjectInfo();
+            loadProviders();
+        });
+        
+        // File operations
+        async function loadFiles() {
+            try {
+                const files = await window.go.app.GetAllFiles();
+                const fileTree = document.getElementById('fileTree');
+                fileTree.innerHTML = '';
+                
+                files.forEach(file => {
+                    const fileItem = document.createElement('div');
+                    fileItem.className = 'file-item';
+                    fileItem.innerHTML = `
+                        <span class="file-icon">📄</span>
+                        <span>${file}</span>
+                    `;
+                    fileItem.onclick = () => openFile(file);
+                    fileTree.appendChild(fileItem);
+                });
+            } catch (error) {
+                console.error('Error loading files:', error);
+            }
+        }
+        
+        async function openFile(filename) {
+            try {
+                const content = await window.go.app.ReadFile(filename);
+                currentFile = filename;
+                openFiles.set(filename, content);
+                
+                editor.setValue(content);
+                updateTabs();
+                
+                // Detect language based on extension
+                const lang = getLanguageFromExtension(filename);
+                monaco.editor.setModelLanguage(editor.getModel(), lang);
+            } catch (error) {
+                appendToTerminal(`Error opening ${filename}: ${error}`);
+            }
+        }
+        
+        function getLanguageFromExtension(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const langMap = {
+                'go': 'go',
+                'js': 'javascript',
+                'ts': 'typescript',
+                'py': 'python',
+                'html': 'html',
+                'css': 'css',
+                'json': 'json',
+                'md': 'markdown',
+                'yaml': 'yaml',
+                'yml': 'yaml',
+                'toml': 'toml',
+                'rs': 'rust',
+                'java': 'java',
+                'cpp': 'cpp',
+                'c': 'c',
+                'sh': 'shell',
+                'ps1': 'powershell'
+            };
+            return langMap[ext] || 'plaintext';
+        }
+        
+        function updateTabs() {
+            const tabsContainer = document.getElementById('tabs');
+            tabsContainer.innerHTML = '';
+            
+            openFiles.forEach((content, filename) => {
+                const tab = document.createElement('div');
+                tab.className = 'tab' + (filename === currentFile ? ' active' : '');
+                tab.innerHTML = `
+                    <span>📄</span>
+                    <span>${filename.split('/').pop()}</span>
+                    <span class="tab-close" onclick="closeFile('${filename}', event)">×</span>
+                `;
+                tab.onclick = (e) => {
+                    if (!e.target.classList.contains('tab-close')) {
+                        switchToFile(filename);
+                    }
+                };
+                tabsContainer.appendChild(tab);
+            });
+        }
+        
+        function switchToFile(filename) {
+            currentFile = filename;
+            editor.setValue(openFiles.get(filename));
+            updateTabs();
+        }
+        
+        function closeFile(filename, event) {
+            event.stopPropagation();
+            openFiles.delete(filename);
+            if (currentFile === filename) {
+                currentFile = openFiles.keys().next().value || null;
+                if (currentFile) {
+                    editor.setValue(openFiles.get(currentFile));
+                } else {
+                    editor.setValue('// No file open');
+                }
+            }
+            updateTabs();
+        }
+        
+        // Auto-save on editor change
+        let saveTimeout;
+        editor.onDidChangeModelContent(() => {
+            clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(async () => {
+                if (currentFile) {
+                    try {
+                        await window.go.app.WriteFile(currentFile, editor.getValue());
+                        appendToTerminal(`✓ Saved ${currentFile}`);
+                    } catch (error) {
+                        appendToTerminal(`✗ Error saving ${currentFile}: ${error}`);
+                    }
+                }
+            }, 1000);
+        });
+        
+        // Terminal
+        async function handleTerminalInput(event) {
+            if (event.key === 'Enter') {
+                const input = event.target.value;
+                event.target.value = '';
+                appendToTerminal(`$ ${input}`);
+                
+                try {
+                    const result = await window.go.app.RunCommand(input, '');
+                    appendToTerminal(result);
+                } catch (error) {
+                    appendToTerminal(`Error: ${error.message}`);
+                }
+            }
+        }
+        
+        function appendToTerminal(text) {
+            const output = document.getElementById('terminalOutput');
+            const line = document.createElement('div');
+            line.textContent = text;
+            output.appendChild(line);
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        function clearTerminal() {
+            document.getElementById('terminalOutput').innerHTML = '';
+        }
+        
+        // Custom Apps
+        async function loadApps() {
+            try {
+                const apps = await window.go.app.ListApps();
+                const appList = document.getElementById('appList');
+                appList.innerHTML = '';
+                
+                if (apps.length === 0) {
+                    appList.innerHTML = '<div style="padding: 20px; text-align: center; color: #858585;">No custom apps loaded</div>';
+                    return;
+                }
+                
+                apps.forEach(app => {
+                    const appItem = document.createElement('div');
+                    appItem.className = 'app-item';
+                    appItem.innerHTML = `
+                        <div class="app-icon">🚀</div>
+                        <div class="app-info">
+                            <div class="app-name">${app}</div>
+                            <div class="app-desc">Custom Agent App</div>
+                        </div>
+                        <button class="run-btn" onclick="runApp('${app}')">Run</button>
+                    `;
+                    appList.appendChild(appItem);
+                });
+            } catch (error) {
+                console.error('Error loading apps:', error);
+            }
+        }
+        
+        async function runApp(appName) {
+            appendToTerminal(`Running ${appName}...`);
+            try {
+                const result = await window.go.app.RunApp(appName, []);
+                appendToTerminal(result);
+            } catch (error) {
+                appendToTerminal(`Error running ${appName}: ${error}`);
+            }
+        }
+        
+        // Project info
+        async function loadProjectInfo() {
+            try {
+                const path = await window.go.app.GetProjectRoot();
+                document.getElementById('projectPath').textContent = `Project: ${path.split('/').pop()}`;
+            } catch (error) {
+                console.error('Error loading project info:', error);
+            }
+        }
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', async (e) => {
+            // Ctrl+S to save
+            if (e.ctrlKey && e.key === 's') {
+                e.preventDefault();
+                if (currentFile) {
+                    try {
+                        await window.go.app.WriteFile(currentFile, editor.getValue());
+                        appendToTerminal(`✓ Saved ${currentFile}`);
+                    } catch (error) {
+                        appendToTerminal(`✗ Error saving: ${error}`);
+                    }
+                }
+            }
+            
+            // Ctrl+` to toggle terminal focus
+            if (e.ctrlKey && e.key === '`') {
+                e.preventDefault();
+                document.getElementById('terminal-input').focus();
+            }
+            
+            // Ctrl+Shift+A to open AI panel
+            if (e.ctrlKey && e.shiftKey && e.key === 'A') {
+                e.preventDefault();
+                toggleAIPanel();
+            }
+        });
+        
+        // AI Provider functions
+        async function loadProviders() {
+            try {
+                const config = await window.go.app.GetConfig();
+                providers = config.providers;
+                activeProvider = config.activeProvider;
+                
+                // Update status bar
+                const providerInfo = providers[activeProvider];
+                if (providerInfo && providerInfo.enabled) {
+                    document.getElementById('aiProvider').textContent = `AI: ${providerInfo.name} ✓`;
+                } else {
+                    document.getElementById('aiProvider').textContent = 'AI: Not configured';
+                }
+            } catch (error) {
+                console.error('Error loading providers:', error);
+            }
+        }
+        
+        function openSettings() {
+            const modal = document.getElementById('settingsModal');
+            modal.classList.add('active');
+            renderProviderList();
+        }
+        
+        function closeSettings() {
+            document.getElementById('settingsModal').classList.remove('active');
+        }
+        
+        function renderProviderList() {
+            const container = document.getElementById('providerList');
+            container.innerHTML = '';
+            
+            Object.entries(providers).forEach(([key, provider]) => {
+                const card = document.createElement('div');
+                card.className = 'provider-card' + (activeProvider === key ? ' active' : '');
+                card.innerHTML = `
+                    <div class="provider-header">
+                        <div>
+                            <div class="provider-name">${provider.name}</div>
+                            <div class="provider-model">${provider.model}</div>
+                        </div>
+                        <div class="provider-actions">
+                            <label class="radio-label">
+                                <input type="radio" name="activeProvider" value="${key}" ${activeProvider === key ? 'checked' : ''} onchange="selectProvider('${key}')">
+                                Active
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>API Key</label>
+                        <input type="password" id="apiKey-${key}" value="${provider.apiKey || ''}" placeholder="Enter your API key">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Model</label>
+                            <input type="text" id="model-${key}" value="${provider.model}" placeholder="Model name">
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+        
+        function selectProvider(key) {
+            activeProvider = key;
+            renderProviderList();
+        }
+        
+        async function saveSettings() {
+            try {
+                // Save each provider's settings
+                for (const [key, provider] of Object.entries(providers)) {
+                    const apiKey = document.getElementById(`apiKey-${key}`).value;
+                    const model = document.getElementById(`model-${key}`).value;
+                    const enabled = (key === activeProvider && apiKey.trim() !== '');
+                    
+                    await window.go.app.UpdateProvider(key, apiKey, model, enabled);
+                }
+                
+                // Set active provider
+                await window.go.app.SetActiveProvider(activeProvider);
+                
+                appendToTerminal('✓ Settings saved');
+                closeSettings();
+                loadProviders();
+            } catch (error) {
+                appendToTerminal(`✗ Error saving settings: ${error}`);
+            }
+        }
+        
+        // AI Panel functions
+        function toggleAIPanel() {
+            const panel = document.getElementById('aiPanel');
+            panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+        }
+        
+        function closeAIPanel() {
+            document.getElementById('aiPanel').style.display = 'none';
+        }
+        
+        async function askAI() {
+            const questionInput = document.getElementById('aiQuestion');
+            const question = questionInput.value.trim();
+            const chatHistory = document.getElementById('aiChatHistory');
+            
+            if (!question) return;
+            
+            // Check if AI is configured
+            const providerInfo = providers[activeProvider];
+            if (!providerInfo || !providerInfo.enabled) {
+                alert('Please configure your AI provider in Settings first!');
+                openSettings();
+                return;
+            }
+            
+            // Add user question to chat
+            chatHistory.innerHTML += `<div style="margin-bottom: 10px;"><strong style="color: #007acc;">You:</strong> ${question}</div>`;
+            questionInput.value = '';
+            
+            // Get context from open files
+            const openFilesList = Array.from(openFiles.keys());
+            
+            try {
+                appendToTerminal(`Asking AI: ${question}`);
+                const answer = await window.go.app.AskAI(question, openFilesList);
+                
+                // Format answer with markdown-like styling
+                const formattedAnswer = answer
+                    .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre style="background: #1e1e1e; padding: 10px; border-radius: 4px; overflow-x: auto;">$2</pre>')
+                    .replace(/`([^`]+)`/g, '<code style="background: #1e1e1e; padding: 2px 6px; border-radius: 3px;">$1</code>')
+                    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\n/g, '<br>');
+                
+                chatHistory.innerHTML += `<div style="margin-bottom: 10px;"><strong style="color: #0e7a0d;">AI:</strong> ${formattedAnswer}</div>`;
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+                
+                appendToTerminal('✓ AI response received');
+            } catch (error) {
+                chatHistory.innerHTML += `<div style="margin-bottom: 10px; color: #f44336;"><strong style="color: #f44336;">Error:</strong> ${error.message}</div>`;
+                appendToTerminal(`✗ AI error: ${error.message}`);
+            }
+        }
+    </script>
+</body>
+</html>
