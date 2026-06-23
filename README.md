@@ -64,7 +64,7 @@ Installation:
 
 1. Install Go from https://go.dev/dl/
 2. Install Wails CLI:
-   go install github.com/wailsapp/wails/v2/cmd/wails@latest
+  * go install github.com/wailsapp/wails/v2/cmd/wails@latest*
 3. Clone or download this project
 4. Navigate to the mugsoft directory
 
@@ -203,7 +203,3 @@ Built with:
 - Wails - https://wails.io
 - Monaco Editor - https://microsoft.github.io/monaco-editor/
 - Go - https://go.dev
-
-Inspired by:
-- VSCode - https://code.visualstudio.com
-- Hermes Agent - https://hermes-agent.nousresearch.com
