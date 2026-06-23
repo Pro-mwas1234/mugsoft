@@ -11,6 +11,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"syscall"
+	"unsafe"
+	"golang.org/x/sys/windows/registry"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -381,7 +384,56 @@ func getDefaultProjectRoot() string {
 	return filepath.Join(homeDir, "mugsoft-projects", "default")
 }
 
+// checkWebView2 checks if WebView2 is installed and offers to install it if missing
+func checkWebView2() error {
+	// Check registry for WebView2 installation
+	key, err := registry.OpenKey(registry.LOCAL_MACHINE, `SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}`, registry.QUERY_VALUE)
+	if err == nil {
+		key.Close()
+		return nil // WebView2 found
+	}
+	
+	// Also check user registry
+	key, err = registry.OpenKey(registry.CURRENT_USER, `Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}`, registry.QUERY_VALUE)
+	if err == nil {
+		key.Close()
+		return nil // WebView2 found
+	}
+	
+	// WebView2 not found, show message
+	msg := "Microsoft WebView2 Runtime is required but not installed.\n\n"
+	msg += "Would you like to download it now?\n\n"
+	msg += "Click OK to open the download page in your browser,\n"
+	msg += "then install and restart MugSoft Agent.\n\n"
+	msg += "Download link: https://developer.microsoft.com/en-us/microsoft-edge/webview2/"
+	
+	// Show message box (Windows API)
+	const MB_YESNO = 4
+	const MB_ICONQUESTION = 32
+	const IDYES = 6
+	
+	ret, _, _ := syscall.SyscallN(
+		syscall.NewLazyDLL("user32.dll").NewProc("MessageBoxW").Addr(),
+		0,
+		uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(msg))),
+		uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr("WebView2 Required"))),
+		MB_YESNO|MB_ICONQUESTION,
+	)
+	
+	if ret == IDYES {
+		// Open download page
+		exec.Command("cmd", "/C", "start", "https://developer.microsoft.com/en-us/microsoft-edge/webview2/").Start()
+	}
+	
+	return fmt.Errorf("WebView2 not installed")
+}
+
 func main() {
+	// Check for WebView2 first
+	if err := checkWebView2(); err != nil {
+		os.Exit(1)
+	}
+	
 	// Create an instance of the app structure
 	app := NewApp()
 
